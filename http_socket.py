@@ -125,19 +125,21 @@ class HttpSocket(object):
     def _get_content(
         self,
     ):
-        data = self.recv_buffer[:min(
-            self._request_context["content_length"],
-            constants.BLOCK_SIZE - len(self._request_context["content"]),
-        )]
-        self._request_context["content"] += data
-        self._request_context["content_length"] -= len(data)
-        if (
-            not self._service_class.handle_content(self._request_context)
-            and not self._request_context["content_length"]
-            and not self._request_context["content"]
-        ):
+        if self._request_context["content_length"]:
+            data = self.recv_buffer[:min(
+                self._request_context["content_length"],
+                constants.BLOCK_SIZE - len(self._request_context["content"]),
+            )]
+            self._request_context["content"] += data
+            self._request_context["content_length"] -= len(data)
+            self.recv_buffer = self.recv_buffer[len(data):]
+        while self._service_class.handle_content(self._request_context):
+            pass
+        if not self._request_context["content_length"]:
             self._service_class.before_response_status(self._request_context)
-            self.current_state = constants.SEND_STATUS_LINE   
+            self.current_state = constants.SEND_STATUS_LINE
+        elif not self.recv_buffer:
+            return False
 
     def _send_status_line(
         self,

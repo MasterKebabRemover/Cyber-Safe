@@ -19,7 +19,6 @@ def get_registry():
                     registry[obj.name()] = obj
     return registry
 
-
 class ServiceBase(object):
     def __init__(
         self,
@@ -355,15 +354,16 @@ class FileUploadService(ServiceBase):
         request_context["boundary"] += "\r\n"
         request_context["final_boundary"] += "\r\n"
 
-        request_context["buffer"] = bytearray()
         request_context["req_headers"]["Content-Disposition"] = None
         request_context["req_headers"]["Content-Type"] = None
+
+        request_context["response"] = "The files:\r\n"  # prepare reply in case of success
 
     def _recv_headers(
         self,
         request_context,
     ):
-        line, request_context["buffer"] = util.recv_line(request_context["buffer"])
+        line, request_context["content"] = util.recv_line(request_context["content"])
         while line is not None:
             if line == "":
                 self._init_file(request_context)
@@ -373,8 +373,8 @@ class FileUploadService(ServiceBase):
                 line = util.parse_header(line)
                 if line[0] in request_context["req_headers"]:
                     request_context["req_headers"][line[0]] = line[1]
-                line, request_context["buffer"] = util.recv_line(request_context["buffer"])
-        if len(request_context["buffer"]) > constants.BLOCK_SIZE:
+                line, request_context["content"] = util.recv_line(request_context["content"])
+        if len(request_context["content"]) > constants.BLOCK_SIZE:
             raise RuntimeError("Maximum header size reached")
 
     def _init_file(
@@ -399,42 +399,36 @@ class FileUploadService(ServiceBase):
         self,
         request_context,
     ):
-        index = request_context["buffer"].find(request_context["boundary"])
-        while index != 0:
-            request_context["buffer"] = request_context["buffer"][
+        while request_context["content"][:-len(request_context["boundary"])]:
+            index = request_context["content"].find(request_context["boundary"])
+            if index == 0:
+                break
+            request_context["content"] = request_context["content"][
                 os.write(
                     request_context["fd"],
-                    request_context["buffer"][:index],
+                    request_context["content"][:index],
                 ):
             ]
-            index = request_context["buffer"].find(request_context["boundary"])
         
     def handle_content(
         self,
         request_context,
     ):
-        buffer_length = len(request_context["buffer"])
-        request_context["buffer"] += request_context["content"][
-            :constants.BLOCK_SIZE - buffer_length
-        ]
-        request_context["content"] = request_context["content"][
-            len(request_context["buffer"]) - buffer_length:
-        ]
-        request_context["buffer"] = request_context["buffer"].replace(
+        request_context["content"] = request_context["content"].replace(
             request_context["final_boundary"],
             request_context["boundary"],
         )
-        index = request_context["buffer"].find(request_context["boundary"])
+        index = request_context["content"].find(request_context["boundary"])
         if index == -1:
             self._current_func(
                 request_context,
             )
         else:
-            while request_context["buffer"].find(request_context["boundary"]) != 0:
+            while request_context["content"].find(request_context["boundary"]) != 0:
                 self._current_func(
                     request_context,
                 )
-            request_context["buffer"] = request_context["buffer"][len(
+            request_context["content"] = request_context["content"][len(
                 request_context["boundary"]
             ):]
             if self._current_func == self._recv_content:
@@ -446,9 +440,20 @@ class FileUploadService(ServiceBase):
                     )
                 )
                 os.close(request_context["fd"])
-        if not request_context["content"] and not request_context["buffer"]:
-            return False
-        return True
+                request_context["response"] += "%s\r\n" % (request_context["filename"])
+        if request_context["content"][:-len(request_context["boundary"])]:
+            return True
+        return False
+
+    def before_response_headers(
+        self,
+        request_context,
+    ):
+        if request_context["code"] == 200:
+            request_context["response"] += "Were uploaded successfully"
+        request_context["response"] = util.text_to_html(request_context["response"])
+        request_context["headers"][constants.CONTENT_TYPE] = "text/html"
+        super(FileUploadService, self).before_response_headers(request_context)
 
     def get_header_dict(
         self,

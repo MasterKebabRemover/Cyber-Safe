@@ -5,6 +5,13 @@ import logging
 
 import constants
 
+class ClientError(RuntimeError):
+    def __init__(
+        self,
+        message,
+    ):
+        super(ClientError, self).__init__(message)
+
 def text_to_html(
     text,
 ):
