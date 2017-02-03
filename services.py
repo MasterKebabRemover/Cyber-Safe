@@ -522,3 +522,23 @@ class FileService(ServiceBase):
     @staticmethod
     def name():
         return "*"
+
+class BlockDeviceRead(ServiceBase):
+    def __init__(
+        self,
+    ):
+        super(BlockDeviceRead, self).__init__()
+
+    def before_response_headers(
+        self,
+        request_context,
+    ):
+        sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
+        logging.debug(sparse_size)
+        logging.debug(sparse_size / (1024*4))
+        request_context["response"] = "nice meme"
+        request_context["headers"][constants.CONTENT_TYPE] = "text/plain"
+
+    @staticmethod
+    def name():
+        return "/read"

@@ -16,21 +16,16 @@ class Server(object):
 
     def __init__(
         self,
-        log,
-        event_object,
-        bind_address,
-        bind_port,
-        timeout=100000,
-        max_connections=10,
-        max_buffer_size=1024*1024
+        application_context,
     ):
-        self._log = log
-        self._event_object = event_object
-        self._timeout = timeout
-        self._bind_address = bind_address
-        self._bind_port = bind_port
-        self._max_connections = max_connections
-        self._max_buffer_size = max_buffer_size
+        self._log = application_context["log"]
+        self._event_object = application_context["event_object"]
+        self._timeout = application_context["timeout"]
+        self._bind_address = application_context["bind_address"]
+        self._bind_port = application_context["bind_port"]
+        self._max_connections = application_context["max_connections"]
+        self._max_buffer_size = application_context["max_buffer_size"]
+        self._application_context = application_context
 
     def stop(self, signum, frame):
         self._terminate = True
@@ -76,6 +71,7 @@ class Server(object):
             client_entry = http_socket.HttpSocket(
                     client,
                     constants.READING,
+                    self._application_context,
                 )
             client.setblocking(0)
             logging.debug(
@@ -98,6 +94,7 @@ class Server(object):
             self._fd_dict[server.fileno()] = http_socket.HttpSocket(
                 server,
                 constants.SERVER,
+                self._application_context
             )
 
             server.bind(

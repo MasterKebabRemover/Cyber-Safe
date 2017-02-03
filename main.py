@@ -80,14 +80,30 @@ def parse_args():
         default=1024*1024,
         help="max size of async_server read buffer. Default: %(default)s",
     )
+    parser.add_argument(
+        "--sparse-file",
+        default="disk",
+        help="Name of sparse file",
+    )
+    parser.add_argument(
+        "--sparse-size",
+        type=int,
+        default=1,
+        help="size of sparse file in MB"
+    )
 
     args = parser.parse_args()
     args.base = os.path.normpath(os.path.realpath(args.base))
     return args
 
 
-def main():
+def __main__():
     args = parse_args()
+
+    sparse = os.open(args.sparse_file, os.O_RDWR | os.O_CREAT)
+    os.lseek(sparse, args.sparse_size * constants.MB, 0)
+    os.write(sparse, " ")
+    
     if args.foreground:
         daemonize()
 
@@ -107,21 +123,27 @@ def main():
             "select": event_object.SelectEvents,
         }[args.event_method]()
 
+    application_context = {
+        "log": args.log_file,
+        "event_object": poll_object,
+        "bind_address": args.bind_address,
+        "bind_port": args.bind_port,
+        "timeout": args.timeout,
+        "max_connections": args.max_connections,
+        "max_buffer_size": args.max_buffer_size,
+        "sparse": sparse,
+    }
+
     server = async_server.Server(
-        log=args.log_file,
-        event_object=poll_object,
-        bind_address=args.bind_address,
-        bind_port=args.bind_port,
-        timeout=args.timeout,
-        max_connections=args.max_connections,
-        max_buffer_size=args.max_buffer_size,
+        application_context,
     )
 
     objects.append(server)
     logging.debug("main module called - server.run()")
     server.run()
+    os.close(sparse)
 
 if __name__ == "__main__":
-    main()
+    __main__()
 
 # /http://localhost:8888/file.txt

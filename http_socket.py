@@ -31,6 +31,7 @@ class HttpSocket(object):
         self,
         socket,
         state,
+        application_context,
         max_header_length=MAX_HEADER_LENGTH,
         max_headers=MAX_HEADERS,
     ):
@@ -38,6 +39,7 @@ class HttpSocket(object):
         self.state = state
         self._max_header_length = max_header_length
         self._max_headers = max_headers
+        self._request_context["application_context"] = application_context
 
         self._state_machine = self._get_state_machine()
 
