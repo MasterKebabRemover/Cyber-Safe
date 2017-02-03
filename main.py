@@ -103,6 +103,7 @@ def __main__():
     sparse = os.open(args.sparse_file, os.O_RDWR | os.O_CREAT)
     os.lseek(sparse, args.sparse_size * constants.MB, 0)
     os.write(sparse, " ")
+    os.close(sparse)
     
     if args.foreground:
         daemonize()
@@ -131,7 +132,7 @@ def __main__():
         "timeout": args.timeout,
         "max_connections": args.max_connections,
         "max_buffer_size": args.max_buffer_size,
-        "sparse": sparse,
+        "sparse": args.sparse_file,
     }
 
     server = async_server.Server(
@@ -141,7 +142,6 @@ def __main__():
     objects.append(server)
     logging.debug("main module called - server.run()")
     server.run()
-    os.close(sparse)
 
 if __name__ == "__main__":
     __main__()

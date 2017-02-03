@@ -18,7 +18,6 @@ class Server(object):
         self,
         application_context,
     ):
-        self._log = application_context["log"]
         self._event_object = application_context["event_object"]
         self._timeout = application_context["timeout"]
         self._bind_address = application_context["bind_address"]

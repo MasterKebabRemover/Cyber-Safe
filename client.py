@@ -49,6 +49,7 @@ def main():
         )
     ) as s:
         s.connect((args.dst_address, args.dst_port))
+        s.settimeout(1)
         if args.action == "read":
             cmd = "GET /%s?block=%d %s\r\n\r\n" % (
                 args.action,
@@ -56,38 +57,9 @@ def main():
                 constants.HTTP_SIGNATURE
             )
             send_string(s, cmd)
-        while True:
-            logging.debug(s.recv(constants.BLOCK_SIZE))
-        # line = prot.get_line()
-        # if line[:len(constants.HTTP)] != constants.HTTP:
-                # raise RuntimeError("Wrong HTTP Version!")
-        # code = line[len(constants.HTTP)+1:]
-        # if code != constants.SUCCESS_CODE:
-            # raise Exception("Invalid HTTP response: %s" % (code))
-
-        # line_counter = constants.MAX_NUMBER_OF_HEADERS
-        # content_length = 0
-        # while True:
-                # line = prot.get_line()
-                # line_counter -= 1
-                # if line_counter < 0:
-                    # raise RuntimeError("Too many lines!")
-                # if not line:
-                    # break
-                # if prot.split_line(line)["header"] == "Content-Length":
-                    # content_length = int(prot.split_line(line)["content"])
-        # receive_to_output(handle, temp_file, s, content_length)
-        # os.close(handle)
-        # os.rename(temp_file, OUTPUT)
-        # print code
-        # temp_file = None
-    # except Exception as e:
-        # print(e)
-    # finally:
-        # if temp_file is not None:
-            # try:
-                # os.remove(temp_file)
-            # except Exception as e:
-                # print("Can't remove file '%s': %s" % (temp_file, e))
+        data = s.recv(constants.BLOCK_SIZE)
+        while data:
+            logging.debug(data)
+            data = s.recv(constants.BLOCK_SIZE)
 
 main()
