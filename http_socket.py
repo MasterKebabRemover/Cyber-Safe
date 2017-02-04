@@ -112,7 +112,6 @@ class HttpSocket(object):
             line = self._recv_line()
             if line is None: # means that async server has yet to receive all headers
                 break
-
             if line == "": # this is the end of headers
                 self._service_class.before_request_content(self._request_context)
                 self.current_state = constants.GET_CONTENT

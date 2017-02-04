@@ -559,3 +559,40 @@ class BlockDeviceRead(ServiceBase):
     @staticmethod
     def name():
         return "/read"
+
+class BlockDeviceWrite(ServiceBase):
+    def __init__(
+        self,
+    ):
+        super(BlockDeviceWrite, self).__init__()
+
+    def before_response_status(
+        self,
+        request_context,
+    ):
+
+        sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
+        qs = urlparse.parse_qs(request_context["parsed"].query)
+        block = int(qs['block'][0])
+        if (sparse_size / (1024*4)) - 1 < block:
+            request_context["code"] = 500
+            request_context["status"] = "Invalid block number"
+        else:
+            request_context["block"] = block
+
+    def response(
+        self,
+        request_context,
+    ):
+        if request_context.get("block") is None:
+            return
+        sparse = os.open(request_context["application_context"]["sparse"], os.O_RDONLY)
+        os.lseek(sparse, 1024*4*request_context["block"], os.SEEK_SET)
+        data = os.read(sparse, 1024*4)
+        os.close(sparse)
+        request_context["block"] = None
+        return data
+
+    @staticmethod
+    def name():
+        return "/write"

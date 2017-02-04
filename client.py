@@ -6,6 +6,8 @@ import socket
 
 import constants
 
+DATA_TO_SEND = "hello this is a nice data"
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -50,16 +52,21 @@ def main():
     ) as s:
         s.connect((args.dst_address, args.dst_port))
         s.settimeout(1)
-        if args.action == "read":
-            cmd = "GET /%s?block=%d %s\r\n\r\n" % (
+        cmd = "GET /%s?block=%d %s\r\n" % (
                 args.action,
                 args.block,
                 constants.HTTP_SIGNATURE
             )
+        if args.action == "read":
+            cmd += "\r\n"
             send_string(s, cmd)
-        data = s.recv(constants.BLOCK_SIZE)
-        while data:
-            logging.debug(data)
             data = s.recv(constants.BLOCK_SIZE)
+            while data:
+                logging.debug(data)
+                data = s.recv(constants.BLOCK_SIZE)
+        if args.action == "write":
+            cmd += "Content-Length: %s\r\n\r\n" % (len(DATA_TO_SEND))
+            send_string(s, cmd)
+            send_string(s, DATA_TO_SEND)
 
 main()
