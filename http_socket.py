@@ -3,13 +3,15 @@ import logging
 import urlparse
 
 import constants
-import services
 import util
+from services import *
 
 MAX_HEADER_LENGTH = 4096
 MAX_HEADERS = 100
-REGISTRY = services.get_registry()
 
+REGISTRY = {
+    service.name(): service for service in service_base.ServiceBase.__subclasses__()
+}
 
 class HttpSocket(object):
     current_state = constants.GET_FIRST_LINE
