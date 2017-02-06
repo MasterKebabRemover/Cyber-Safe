@@ -173,6 +173,7 @@ class HttpSocket(object):
     ):
         data = self._service_class.response(self._request_context)
         if data is None:
+            self._service_class.before_terminate(self._request_context)
             self.current_state = constants.GET_FIRST_LINE
         else:
             self.send_buffer += data

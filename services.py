@@ -537,7 +537,7 @@ class BlockDeviceRead(ServiceBase):
         sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
-        if (sparse_size / (1024*4)) - 1 < block:
+        if (sparse_size / (constants.BLOCK_SIZE)) - 1 < block:
             request_context["code"] = 500
             request_context["status"] = "Invalid block number"
         else:
@@ -550,8 +550,8 @@ class BlockDeviceRead(ServiceBase):
         if request_context.get("block") is None:
             return
         sparse = os.open(request_context["application_context"]["sparse"], os.O_RDONLY)
-        os.lseek(sparse, 1024*4*request_context["block"], os.SEEK_SET)
-        data = os.read(sparse, 1024*4)
+        os.lseek(sparse, constants.BLOCK_SIZE*request_context["block"], os.SEEK_SET)
+        data = os.read(sparse, constants.BLOCK_SIZE)
         os.close(sparse)
         request_context["block"] = None
         return data
@@ -566,32 +566,49 @@ class BlockDeviceWrite(ServiceBase):
     ):
         super(BlockDeviceWrite, self).__init__()
 
-    def before_response_status(
+    def before_request_content(
         self,
         request_context,
     ):
-
+        super(BlockDeviceWrite, self).before_request_content(request_context)
         sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
-        if (sparse_size / (1024*4)) - 1 < block:
+        if (sparse_size / (constants.BLOCK_SIZE)) - 1 < block:
             request_context["code"] = 500
             request_context["status"] = "Invalid block number"
+        elif int(
+            request_context["req_headers"].get("Content-Length")
+        ) > constants.BLOCK_SIZE:
+            request_context["code"] = 500
+            request_context["status"] = "Content exceeds block size"
         else:
             request_context["block"] = block
+            request_context["length"] = int(constants.BLOCK_SIZE)
+            request_context["fd"] = os.open(
+                request_context["application_context"]["sparse"], os.O_WRONLY
+            )
 
-    def response(
+    def handle_content(
         self,
         request_context,
     ):
-        if request_context.get("block") is None:
-            return
-        sparse = os.open(request_context["application_context"]["sparse"], os.O_RDONLY)
-        os.lseek(sparse, 1024*4*request_context["block"], os.SEEK_SET)
-        data = os.read(sparse, 1024*4)
-        os.close(sparse)
-        request_context["block"] = None
-        return data
+        request_context["length"] -= len(request_context["content"])
+        while request_context["content"]:
+            request_context["content"] = request_context["content"][os.write(
+                request_context["fd"],
+                request_context["content"],
+            ):]
+        
+    def before_terminate(
+        self,
+        request_context,
+    ):
+        while request_context["length"]:
+            request_context["length"] -= os.write(
+                request_context["fd"], "\x00"*request_context["length"]
+            )
+        os.close(request_context["fd"])
 
     @staticmethod
     def name():
