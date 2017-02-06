@@ -2,15 +2,46 @@
 import Cookie
 import random
 import logging
+import os
 
 import constants
 
-class ClientError(RuntimeError):
+class HTTPError(RuntimeError):
     def __init__(
         self,
-        message,
+        code,
+        status,
+        message="",
     ):
-        super(ClientError, self).__init__(message)
+        super(HTTPError, self).__init__(message)
+        self.code = code
+        self.status = status
+        self.message = message
+
+class FDOpen(object):
+    def __init__(
+        self,
+        file,
+        flags,
+        mode,
+    ):
+        self._file = file
+        self._flags = flags
+        self._mode = mode
+
+    def __enter__(self):
+        self._fd = None
+        self.fd = None
+        self._fd = self.fd = os.open(
+            self._file,
+            self._flags,
+            self._mode,
+        )
+        return self.fd
+
+    def __exit__(self, type, value, traceback):
+        if self._fd:
+            os.close(self._fd)
 
 def text_to_html(
     text,

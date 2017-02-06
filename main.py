@@ -8,6 +8,7 @@ import signal
 import async_server
 import constants
 import event_object
+import util
 
 
 def daemonize():
@@ -100,10 +101,13 @@ def parse_args():
 def __main__():
     args = parse_args()
 
-    sparse = os.open(args.sparse_file, os.O_RDWR | os.O_CREAT)
-    os.lseek(sparse, args.sparse_size * constants.MB, 0)
-    os.write(sparse, " ")
-    os.close(sparse)
+    with util.FDOpen(
+        args.sparse_file,
+        os.O_RDWR | os.O_CREAT,
+        0o666,
+    ) as sparse:
+        os.lseek(sparse, args.sparse_size * constants.MB, 0)
+        os.write(sparse, bytearray(0))
     
     if args.foreground:
         daemonize()

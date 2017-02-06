@@ -16,6 +16,7 @@ REGISTRY = {
 class HttpSocket(object):
     current_state = constants.GET_FIRST_LINE
     _service_class = None
+    _error = None
     _content = ""
     _request_context = {
         "code": 200,
@@ -60,10 +61,20 @@ class HttpSocket(object):
     def on_receive(
         self,
     ):
-        call_me_again = self._state_machine[self.current_state]()
-        if call_me_again is None:
-            call_me_again = True
-        return call_me_again
+        try:
+            _call_me_again = None
+            _call_me_again = call_me_again = self._state_machine[self.current_state]()
+        except util.HTTPError as e:
+            self._request_context["code"] = e.code
+            self._request_context["status"] = e.status
+            self._request_context["response"] = e.message
+            self._request_context["headers"]["Content-Length"] = len(self._request_context["response"])
+            self._request_context["headers"]["Content-Type"] = "text/plain"
+            self._error = e
+
+        if _call_me_again is None:
+            _call_me_again = True
+        return _call_me_again
 
     def _get_first_line(
         self,
@@ -115,7 +126,8 @@ class HttpSocket(object):
             if line is None: # means that async server has yet to receive all headers
                 break
             if line == "": # this is the end of headers
-                self._service_class.before_request_content(self._request_context)
+                if not self._error:
+                    self._service_class.before_request_content(self._request_context)
                 self.current_state = constants.GET_CONTENT
                 break
 
@@ -136,10 +148,12 @@ class HttpSocket(object):
             self._request_context["content"] += data
             self._request_context["content_length"] -= len(data)
             self.recv_buffer = self.recv_buffer[len(data):]
-        while self._service_class.handle_content(self._request_context):
-            pass
+        if not self._error:
+            while self._service_class.handle_content(self._request_context):
+                pass
         if not self._request_context["content_length"]:
-            self._service_class.before_response_status(self._request_context)
+            if not self._error:
+                self._service_class.before_response_status(self._request_context)
             self.current_state = constants.SEND_STATUS_LINE
         elif not self.recv_buffer:
             return False
@@ -155,7 +169,8 @@ class HttpSocket(object):
                 self._request_context["status"],
             )
         ).encode("utf-8")
-        self._service_class.before_response_headers(self._request_context)
+        if not self._error:
+            self._service_class.before_response_headers(self._request_context)
         self.current_state = constants.SEND_HEADERS
 
     def _send_headers(
@@ -166,14 +181,17 @@ class HttpSocket(object):
                 "%s: %s\r\n" % (key, value)
             )
         self.send_buffer += ("\r\n")
-        self._service_class.before_response_content(self._request_context)
+        if not self._error:
+            self._service_class.before_response_content(self._request_context)
         self.current_state = constants.SEND_RESPONSE
         
 
     def _send_response(
         self,
     ):
-        data = self._service_class.response(self._request_context)
+        data = None
+        if not self._error:
+            data = self._service_class.response(self._request_context)
         if data is None:
             self._service_class.before_terminate(self._request_context)
             self.current_state = constants.GET_FIRST_LINE
@@ -200,58 +218,3 @@ class HttpSocket(object):
         self._request_context["req_headers"] = {}
         self._request_context["response"] = ""
         self._request_context["headers"] = {}
-
-    def http_request(
-        self,
-        buffer,
-    ):
-        req, rest = self._recv_line(
-            buffer,
-            "",
-        )
-        req_comps = req.split(' ', 2)
-        if req_comps[2] != constants.HTTP_SIGNATURE:
-            raise RuntimeError('Not HTTP protocol')
-        if len(req_comps) != 3:
-            raise RuntimeError('Incomplete HTTP protocol')
-
-    def http_response(
-        self,
-        code,
-        status,
-        message,
-        headers={},
-        length=0,
-    ):
-        buffer = ""
-
-        if message and not length:
-            length = len(message)
-
-        buffer += (
-            (
-                "%s %s %s\r\n"
-            ) % (
-                constants.HTTP_SIGNATURE,
-                code,
-                status,
-            )
-        ).encode("utf-8")
-
-        if not headers.get(constants.CONTENT_LENGTH):
-            buffer += (
-                (
-                    "Content-Length: %s\r\n"
-                ) % (
-                    length,
-                )
-            ).encode("utf-8")
-
-        for key, value in headers.iteritems():
-            buffer += (
-                "%s: %s\r\n" % (key, value)
-            )
-        buffer += ("\r\n")
-        if message:
-            buffer += (message)
-        return buffer

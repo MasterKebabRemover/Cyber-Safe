@@ -11,12 +11,6 @@ class ServiceBase(object):
     ):
         pass
 
-    def before_first_line(
-        self,
-        request_context,
-    ):
-        pass
-
     def before_request_headers(
         self,
         request_context,
