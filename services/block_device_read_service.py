@@ -25,7 +25,7 @@ class BlockDeviceRead(ServiceBase):
         sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
-        if block >= sparse_size / constants.BLOCK_SIZE:
+        if block > sparse_size / constants.BLOCK_SIZE:
             raise util.HTTPError(500, "Invalid block number")
         else:
             request_context["block"] = block
@@ -43,11 +43,15 @@ class BlockDeviceRead(ServiceBase):
         self,
         request_context,
     ):
-        data = ""
-        while len(data) < constants.BLOCK_SIZE:
-            data += os.read(request_context["fd"], constants.BLOCK_SIZE - len(data))
-        request_context["block"] = None
-        return data
+        if request_context["block"] is not None:
+            data = ""
+            while len(data) < constants.BLOCK_SIZE:
+                read_buffer = os.read(request_context["fd"], constants.BLOCK_SIZE - len(data))
+                if not read_buffer:
+                    break
+                data += read_buffer
+            request_context["block"] = None
+            return data
 
     def before_terminate(
         self,

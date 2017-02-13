@@ -66,7 +66,6 @@ def parse_header(line):
     SEP = ':'
     n = line.find(SEP)
     if n == -1:
-        print line
         raise RuntimeError('Invalid header received')
     return line[:n].rstrip(), line[n + len(SEP):].lstrip()
 

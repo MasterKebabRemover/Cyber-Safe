@@ -78,6 +78,7 @@ class Server(object):
                 client.fileno(),
             )
             self._fd_dict[client_entry.socket.fileno()] = client_entry
+            self._event_object.register(client.fileno(), 0)
         except Exception:
             logging.error(traceback.format_exc())
             if client_entry:
@@ -114,13 +115,19 @@ class Server(object):
 
                     for entry in self._fd_dict.values():
                         if entry.state == constants.CLOSING and (
-                                entry.state == constants.SERVER or
-                                not entry.send_buffer):
+                                entry.state != constants.SERVER or
+                                not entry.send_buffer
+                            ):
                                     self._unregister(entry)
 
                     for entry in self._fd_dict.values():
-                        while entry.on_receive():
-                            pass
+                        try:
+                            while entry.on_receive():
+                                pass
+                        except Exception as e:
+                            logging.error(traceback.format_exc())
+                            self._unregister(entry)
+                        
 
                     for entry in self._fd_dict.values():
                         mask = select.POLLERR
@@ -158,8 +165,6 @@ class Server(object):
                                     if not data:
                                         raise RuntimeError("Disconnect")
                                     entry.recv_buffer += data
-                                    while entry.on_receive():
-                                        pass
 
                             if flag & select.POLLOUT:
                                 self._send_data(entry)
@@ -167,6 +172,7 @@ class Server(object):
                         except Exception as e:
                             logging.error(traceback.format_exc())
                             self._unregister(entry)
+
                 except Exception as e:
                     logging.error(traceback.format_exc())
                     self._terminate = True

@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import logging
+
 import constants
 
 class ServiceBase(object):
