@@ -24,7 +24,7 @@ class BlockDeviceWrite(ServiceBase):
         sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
-        if block > sparse_size / constants.BLOCK_SIZE:
+        if block >= sparse_size / constants.BLOCK_SIZE:
             raise util.HTTPError(500, "Invalid block number")
         elif int(
             request_context["req_headers"].get("Content-Length")

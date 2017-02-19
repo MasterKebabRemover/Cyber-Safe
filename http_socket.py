@@ -1,19 +1,16 @@
 #!/usr/bin/python
+import errno
+import socket
 import logging
 import urlparse
+import importlib
 
 import constants
 import util
-from services import *
+from services import service_base
+from pollable import Pollable
 
-MAX_HEADER_LENGTH = 4096
-MAX_HEADERS = 100
-
-REGISTRY = {
-    service.name(): service for service in service_base.ServiceBase.__subclasses__()
-}
-
-class HttpSocket(object):
+class HttpSocket(Pollable):
     _service_class = service_base.ServiceBase()
     _content = ""
     _request_context = {
@@ -33,14 +30,15 @@ class HttpSocket(object):
         socket,
         state,
         application_context,
-        max_header_length=MAX_HEADER_LENGTH,
-        max_headers=MAX_HEADERS,
+        fd_dict,
     ):
-        self.socket = socket
+        self._socket = socket
         self.state = state
-        self._max_header_length = max_header_length
-        self._max_headers = max_headers
+        self._fd_dict = fd_dict
         self._request_context["application_context"] = application_context
+        for service in constants.MODULE_DICT[application_context["block_device"]]:
+            importlib.import_module("services.%s" % service)
+
         self.current_state = constants.GET_FIRST_LINE
 
         self._state_machine = self._get_state_machine()
@@ -75,6 +73,33 @@ class HttpSocket(object):
             },
         }
 
+    def on_read(
+        self,
+    ):
+        free_buffer_size = self._request_context[
+            "application_context"
+        ][
+            "max_buffer_size"
+        ] - len(
+            self.recv_buffer
+        )
+        data = ""
+        try:
+            while len(data) < free_buffer_size:
+                buffer = self._socket.recv(free_buffer_size - len(data))
+                # logging.debug(buffer)
+                if not buffer:
+                    break
+                data += buffer
+        except socket.error as e:
+            if e.errno != errno.EWOULDBLOCK:
+                raise
+
+        if not data:
+            raise RuntimeError("Disconnect")
+        self.recv_buffer += data
+        self.on_receive()
+
     def on_receive(
         self,
     ):
@@ -92,6 +117,32 @@ class HttpSocket(object):
         if _call_me_again is None:
             _call_me_again = True
         return _call_me_again
+
+    def on_write(
+        self,
+    ):
+        try:
+            while self.send_buffer:
+                # logging.debug(self.send_buffer)
+                self.send_buffer = self.send_buffer[
+                    self._socket.send(self.send_buffer):
+                ]
+        except socket.error as e:
+            if e.errno != errno.EWOULDBLOCK:
+                raise
+
+    def on_error(
+        self,
+    ):
+        self.state = constants.CLOSING
+
+    def on_close(
+        self,
+    ):
+        self._socket.close()
+
+    def fileno(self):
+        return self._socket.fileno()
 
     def _get_first_line(
         self,
@@ -120,18 +171,32 @@ class HttpSocket(object):
 
         logging.debug(
             "fd %d called method %s" % (
-                self.socket.fileno(),
+                self.fileno(),
                 self._request_context["parsed"].path
             )
         )
 
-        self._service_class = REGISTRY.get(
-            self._request_context["parsed"].path,
-            REGISTRY["*"],
-        )()
-        self._request_context["req_headers"] = self._service_class.get_header_dict()
-        self._service_class.before_request_headers(self._request_context)
-        self.current_state = self._state_machine[self.current_state]["next"]
+        REGISTRY = {
+            service.name(): service for service in service_base.ServiceBase.__subclasses__()
+        }
+        if not REGISTRY.get("*"):
+            REGISTRY["*"] = service_base.ServiceBase
+
+        try:
+            self._service_class = REGISTRY.get(
+                self._request_context["parsed"].path,
+                REGISTRY["*"],
+            )()
+        except KeyError:
+            raise util.HTTPError(
+                code=500,
+                status="Internal Error",
+                message="service not supported",
+            )
+        finally:
+            self._request_context["req_headers"] = self._service_class.get_header_dict()
+            self._service_class.before_request_headers(self._request_context)
+            self.current_state = self._state_machine[self.current_state]["next"]
 
     def _get_headers(
         self,

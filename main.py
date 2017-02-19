@@ -9,6 +9,7 @@ import async_server
 import constants
 import event_object
 import util
+from http_socket import HttpSocket
 
 
 def daemonize():
@@ -63,7 +64,7 @@ def parse_args():
     )
     parser.add_argument(
         "--foreground",
-        action="store_false",
+        action="store_true",
         default=False,
         help="Whether to daemonize program. Default: %(default)s",
     )
@@ -89,8 +90,25 @@ def parse_args():
     parser.add_argument(
         "--sparse-size",
         type=int,
-        default=1,
+        default=384*constants.MB,
         help="size of sparse file in MB"
+    )
+    parser.add_argument(
+        "--block-device",
+        action="store_true",
+        default=False,
+        help="whether this is a block device or frontend",
+    )
+    parser.add_argument(
+        "--block-device-address",
+        default="0.0.0.0",
+        help="address of block device servers",
+    )
+    parser.add_argument(
+        "--block-device-port",
+        type=int,
+        default=7777,
+        help="port of first block device server"
     )
 
     args = parser.parse_args()
@@ -101,13 +119,16 @@ def parse_args():
 def __main__():
     args = parse_args()
 
-    with util.FDOpen(
-        args.sparse_file,
-        os.O_RDWR | os.O_CREAT,
-        0o666,
-    ) as sparse:
-        os.lseek(sparse, args.sparse_size * constants.MB, 0)
-        os.write(sparse, bytearray(0))
+    if args.block_device:
+        with util.FDOpen(
+            args.sparse_file,
+            os.O_RDWR | os.O_CREAT,
+            0o666,
+        ) as sparse:
+            os.lseek(sparse, args.sparse_size, 0)
+            os.write(sparse, bytearray(1))
+            os.lseek(sparse, 0, 0)
+            os.write(sparse, bytearray([1, 1, 1, 1])) # for bitmap*3 and directory root
     
     if args.foreground:
         daemonize()
@@ -126,7 +147,7 @@ def __main__():
     poll_object = {
             "poll": event_object.PollEvents,
             "select": event_object.SelectEvents,
-        }[args.event_method]()
+        }[args.event_method]
 
     application_context = {
         "log": args.log_file,
@@ -137,10 +158,17 @@ def __main__():
         "max_connections": args.max_connections,
         "max_buffer_size": args.max_buffer_size,
         "sparse": args.sparse_file,
+        "block_device": args.block_device,
+        "args": args,
     }
 
     server = async_server.Server(
         application_context,
+    )
+    server.add_listener(
+        args.bind_address,
+        args.bind_port,
+        HttpSocket,
     )
 
     objects.append(server)

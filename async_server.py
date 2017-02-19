@@ -8,6 +8,7 @@ import traceback
 
 import constants
 import http_socket
+from tcp_listener import TCPListener
 
 
 class Server(object):
@@ -26,42 +27,28 @@ class Server(object):
         self._max_buffer_size = application_context["max_buffer_size"]
         self._application_context = application_context
 
+    def add_listener(
+        self,
+        bind_address,
+        bind_port,
+        initiate,
+    ):
+        listener = TCPListener(
+            bind_address,
+            bind_port,
+            initiate,
+            application_context=self._application_context,
+            fd_dict=self._fd_dict,
+        )
+        self._fd_dict[listener.fileno()] = listener
+        
     def stop(self, signum, frame):
         self._terminate = True
 
     def _unregister(self, entry):
-        logging.debug("Unregistered fd %s\n", entry.socket.fileno())
-        self._event_object.unregister(entry.socket.fileno())
-        del self._fd_dict[entry.socket.fileno()]
-        entry.socket.close()
-
-    def _recv_data(self, entry):
-        free_buffer_size = self._max_buffer_size - len(
-            entry.recv_buffer
-        )
-        data = ""
-        try:
-            while len(data) < free_buffer_size:
-                buffer = entry.socket.recv(free_buffer_size - len(data))
-                # logging.debug(buffer)
-                if not buffer:
-                    break
-                data += buffer
-        except socket.error as e:
-            if e.errno != errno.EWOULDBLOCK:
-                raise
-        return data
-
-    def _send_data(self, entry):
-        try:
-            while entry.send_buffer:
-                # logging.debug(entry.send_buffer)
-                entry.send_buffer = entry.send_buffer[
-                    entry.socket.send(entry.send_buffer):
-                ]
-        except socket.error as e:
-            if e.errno != errno.EWOULDBLOCK:
-                raise
+        logging.debug("Unregistered fd %s\n", entry.fileno())
+        del self._fd_dict[entry.fileno()]
+        entry.on_close()
 
     def _get_new_connection(self, entry):
         try:
@@ -77,104 +64,80 @@ class Server(object):
                 "new connection: %s",
                 client.fileno(),
             )
-            self._fd_dict[client_entry.socket.fileno()] = client_entry
+            self._fd_dict[client_entry.fileno()] = client_entry
             self._event_object.register(client.fileno(), 0)
         except Exception:
             logging.error(traceback.format_exc())
             if client_entry:
                 client_entry.socket.close()
 
+    def terminate(self):
+        logging.debug("Terminating")
+        self._terminate = False
+        for entry in self._fd_dict.values():
+            entry.state = constants.CLOSING
+
+    def create_poller(self):
+        poller = self._event_object()
+        for entry in self._fd_dict.values():
+            mask = select.POLLERR
+            if entry.send_buffer:
+                mask |= select.POLLOUT
+            if (
+                entry.state == constants.LISTENER or
+                (
+                    entry.state ==constants.ACTIVE and
+                    len(entry.recv_buffer) < self._max_buffer_size
+                )
+            ):
+                mask |= select.POLLIN
+            poller.register(
+                entry.fileno(), mask
+            )
+        return poller
+
     def run(self):
-        with contextlib.closing(
-            socket.socket(
-                family=socket.AF_INET,
-                type=socket.SOCK_STREAM,
-            )
-        )as server:
-            self._fd_dict[server.fileno()] = http_socket.HttpSocket(
-                server,
-                constants.SERVER,
-                self._application_context
-            )
+        logging.debug("HTTP server running")
+        while self._fd_dict:
+            try:
+                if self._terminate:
+                    self.terminate()
 
-            server.bind(
-                (self._bind_address, self._bind_port)
-            )
-            server.listen(
-                self._max_connections
-            )
-            logging.debug("HTTP server running")
+                for entry in self._fd_dict.values():
+                    if (
+                            entry.state == constants.CLOSING and
+                            not entry.send_buffer
+                        ):
+                                self._unregister(entry)
 
-            while self._fd_dict:
-                try:
-                    if self._terminate:
-                        logging.debug("Terminating")
-                        self._terminate = False
-                        for entry in self._fd_dict.values():
-                            entry.state = constants.CLOSING
-
-                    for entry in self._fd_dict.values():
-                        if entry.state == constants.CLOSING and (
-                                entry.state != constants.SERVER or
-                                not entry.send_buffer
-                            ):
-                                    self._unregister(entry)
-
-                    for entry in self._fd_dict.values():
-                        try:
-                            while entry.on_receive():
-                                pass
-                        except Exception as e:
-                            logging.error(traceback.format_exc())
-                            self._unregister(entry)
-                        
-
-                    for entry in self._fd_dict.values():
-                        mask = select.POLLERR
-                        if entry.send_buffer:
-                            mask |= select.POLLOUT
-                        if entry.state == constants.SERVER or len(
-                            entry.recv_buffer
-                        ) < self._max_buffer_size:
-                            mask |= select.POLLIN
-                        self._event_object.register(
-                            entry.socket.fileno(), mask
-                        )
-
-                    events = ()
+                for entry in self._fd_dict.values():
                     try:
-                        events = self._event_object.poll(self._timeout)
-                    except select.error as e:
-                        if e[0] != errno.EINTR:
-                            raise
-                    for fd, flag in events:
+                        while entry.on_receive():
+                            pass
+                    except Exception as e:
+                        logging.error(traceback.format_exc())
+                        self._unregister(entry)
+
+                events = ()
+                try:
+                    for fd, flag in self.create_poller().poll(self._timeout):
                         entry = self._fd_dict[fd]
                         try:
                             if flag & (select.POLLHUP | select.POLLERR):
                                 raise RuntimeError(
                                     "socket hung up or experienced error"
                                 )
-
                             if flag & select.POLLIN:
-                                if entry.state == constants.SERVER:
-                                    self._get_new_connection(
-                                        entry,
-                                    )
-                                else:
-                                    data = self._recv_data(entry)
-                                    if not data:
-                                        raise RuntimeError("Disconnect")
-                                    entry.recv_buffer += data
-
+                                entry.on_read()
                             if flag & select.POLLOUT:
-                                self._send_data(entry)
-
+                                entry.on_write()
                         except Exception as e:
                             logging.error(traceback.format_exc())
                             self._unregister(entry)
-
-                except Exception as e:
-                    logging.error(traceback.format_exc())
-                    self._terminate = True
-
+                except select.error as e:
+                    if e[0] != errno.EINTR:
+                        raise
+            except Exception as e:
+                logging.error(traceback.format_exc())
+                self._terminate = True
         logging.debug("server terminated\n")

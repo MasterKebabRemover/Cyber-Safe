@@ -5,7 +5,9 @@
     WRITING,
     PROCESSING,
     CLOSING,
-) = range(5)
+    LISTENER,
+    ACTIVE,
+) = range(7)
 
 (
     GET_FIRST_LINE,
@@ -26,6 +28,23 @@ USERS = {
     "ron": "spaghetti",
     "alon": "balon",
 }
+MODULE_DICT = {
+    1: [
+        "block_device_read_service",
+        "block_device_write_service",
+    ],
+    0: [
+        "clock_service",
+        "counter_service",
+        "file_service",
+        "file_upload_service",
+        "login_service",
+        "multiply_service",
+        "secret_service1",
+        "secret_service2",
+    ],
+}
+
 SUPPORTED_METHODS = ["GET", "POST"]
 HTTP_SIGNATURE = "HTTP/1.1"
 CRLF = "\r\n"
@@ -39,4 +58,5 @@ CONTENT_TYPE = "Content-Type"
 CONTENT_LENGTH = "Content-Length"
 AUTHORIZATION = "Authorization"
 UNATHORIZED = "Unathorized"
+KB = 1024
 MB = 1024*1024
