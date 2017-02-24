@@ -99,6 +99,7 @@ class Server(object):
     def run(self):
         logging.debug("HTTP server running")
         while self._fd_dict:
+            logging.debug(self._fd_dict)
             try:
                 if self._terminate:
                     self.terminate()

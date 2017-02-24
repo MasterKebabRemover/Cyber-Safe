@@ -43,6 +43,10 @@ MODULE_DICT = {
         "secret_service1",
         "secret_service2",
     ],
+    "client": [
+        "client_read",
+        "client_write",
+    ],
 }
 
 SUPPORTED_METHODS = ["GET", "POST"]

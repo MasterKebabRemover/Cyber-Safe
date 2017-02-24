@@ -11,8 +11,6 @@ from services import service_base
 from pollable import Pollable
 
 class HttpSocket(Pollable):
-    _service_class = service_base.ServiceBase()
-    _content = ""
     _request_context = {
         "code": 200,
         "status": "OK",
@@ -31,16 +29,24 @@ class HttpSocket(Pollable):
         state,
         application_context,
         fd_dict,
+        is_client=False,
+        service_class=service_base.ServiceBase(),
     ):
         self._socket = socket
         self.state = state
         self._fd_dict = fd_dict
         self._request_context["application_context"] = application_context
-        for service in constants.MODULE_DICT[application_context["block_device"]]:
-            importlib.import_module("services.%s" % service)
+        self._is_client = is_client
+        self._service_class = service_class
+        if self._is_client:
+            for service in constants.MODULE_DICT["client"]:
+                importlib.import_module("services.%s" % service)
+            self.current_state = constants.SEND_STATUS_LINE
+        else:
+            for service in constants.MODULE_DICT[application_context["block_device"]]:
+                importlib.import_module("services.%s" % service)
 
         self.current_state = constants.GET_FIRST_LINE
-
         self._state_machine = self._get_state_machine()
 
     def _get_state_machine(
@@ -152,10 +158,18 @@ class HttpSocket(Pollable):
             return False
         req_comps = req.split(" ", 2)
         # logging.debug(req)
-        # logging.debug(req_comps)
+        logging.debug(req_comps)
         if len(req_comps) != 3:
             raise RuntimeError("Incomplete HTTP protocol")
-        if req_comps[2] != constants.HTTP_SIGNATURE:
+        if (
+            (
+                not self._is_client and
+                req_comps[2] != constants.HTTP_SIGNATURE
+            ) or (
+                self._is_client and
+                req_comps[0] != constants.HTTP_SIGNATURE
+            )
+        ):
             raise RuntimeError("Not HTTP protocol")
 
         method, uri, signature = req_comps
