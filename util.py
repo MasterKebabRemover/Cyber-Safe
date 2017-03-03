@@ -79,3 +79,44 @@ def recv_line(
     result = buffer[:n].decode("utf-8")
     buffer = buffer[n + len(constants.CRLF_BIN):]
     return result, buffer
+
+def get_headers(
+        request_context,
+    ):
+        finished = False
+        for i in range(constants.MAX_NUMBER_OF_HEADERS):
+            line, request_context["recv_buffer"] = recv_line(request_context["recv_buffer"])
+            # logging.debug(line)
+            if line is None: # means that async server has yet to receive all headers
+                break
+            if line == "": # this is the end of headers
+                finished = True
+                break
+            line = parse_header(line)
+            if line[0] in request_context["req_headers"]:
+                request_context["req_headers"][line[0]] = line[1]
+        else:
+            raise RuntimeError("Exceeded max number of headers")
+        return finished
+
+def send_headers(
+    request_context,
+):
+    for key, value in request_context["headers"].iteritems():
+        request_context["send_buffer"] += (
+            "%s: %s\r\n" % (key, value)
+        )
+    request_context["send_buffer"] += ("\r\n")
+    return True
+
+def get_content(
+    request_context,
+):
+    if request_context["content_length"]:
+        data = request_context["recv_buffer"][:min(
+            request_context["content_length"],
+            constants.BLOCK_SIZE - len(request_context["content"]),
+        )]
+        request_context["content"] += data
+        request_context["content_length"] -= len(data)
+        request_context["recv_buffer"] = request_context["recv_buffer"][len(data):]

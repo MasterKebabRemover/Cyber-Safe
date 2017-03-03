@@ -9,9 +9,10 @@ import constants
 import util
 from services import service_base
 from pollable import Pollable
+from collable import Collable
 
-class HttpSocket(Pollable):
-    _request_context = {
+class HttpSocket(Pollable, Collable):
+    request_context = {
         "code": 200,
         "status": "OK",
         "req_headers": {},
@@ -19,9 +20,9 @@ class HttpSocket(Pollable):
         "accounts": {},
         "content": "",
         "response": "",
+        "recv_buffer": "",
+        "send_buffer": "",
     }
-    send_buffer = ""
-    recv_buffer = ""
 
     def __init__(
         self,
@@ -29,25 +30,18 @@ class HttpSocket(Pollable):
         state,
         application_context,
         fd_dict,
-        is_client=False,
         service_class=service_base.ServiceBase(),
     ):
         self._socket = socket
         self.state = state
         self._fd_dict = fd_dict
-        self._request_context["application_context"] = application_context
-        self._is_client = is_client
+        self.request_context["application_context"] = application_context
         self._service_class = service_class
-        if self._is_client:
-            for service in constants.MODULE_DICT["client"]:
-                importlib.import_module("services.%s" % service)
-            self.current_state = constants.SEND_STATUS_LINE
-        else:
-            for service in constants.MODULE_DICT[application_context["block_device"]]:
-                importlib.import_module("services.%s" % service)
+        for service in constants.MODULE_DICT[application_context["block_device"]]:
+            importlib.import_module("services.%s" % service)
 
-        self.current_state = constants.GET_FIRST_LINE
         self._state_machine = self._get_state_machine()
+        self._current_state = constants.GET_FIRST_LINE
 
     def _get_state_machine(
         self,
@@ -82,12 +76,12 @@ class HttpSocket(Pollable):
     def on_read(
         self,
     ):
-        free_buffer_size = self._request_context[
+        free_buffer_size = self.request_context[
             "application_context"
         ][
             "max_buffer_size"
         ] - len(
-            self.recv_buffer
+            self.request_context["recv_buffer"]
         )
         data = ""
         try:
@@ -103,7 +97,7 @@ class HttpSocket(Pollable):
 
         if not data:
             raise RuntimeError("Disconnect")
-        self.recv_buffer += data
+        self.request_context["recv_buffer"] += data
         self.on_receive()
 
     def on_receive(
@@ -111,15 +105,14 @@ class HttpSocket(Pollable):
     ):
         try:
             _call_me_again = None
-            _call_me_again = call_me_again = self._state_machine[self.current_state]["func"]()
+            _call_me_again = call_me_again = self._state_machine[self._current_state]["func"]()
         except util.HTTPError as e:
-            self._request_context["code"] = e.code
-            self._request_context["status"] = e.status
-            self._request_context["response"] = e.message
-            self._request_context["headers"]["Content-Length"] = len(self._request_context["response"])
-            self._request_context["headers"]["Content-Type"] = "text/plain"
+            self.request_context["code"] = e.code
+            self.request_context["status"] = e.status
+            self.request_context["response"] = e.message
+            self.request_context["headers"]["Content-Length"] = len(self.request_context["response"])
+            self.request_context["headers"]["Content-Type"] = "text/plain"
             self._service_class = service_base.ServiceBase()
-
         if _call_me_again is None:
             _call_me_again = True
         return _call_me_again
@@ -128,10 +121,10 @@ class HttpSocket(Pollable):
         self,
     ):
         try:
-            while self.send_buffer:
-                # logging.debug(self.send_buffer)
-                self.send_buffer = self.send_buffer[
-                    self._socket.send(self.send_buffer):
+            while self.request_context["send_buffer"]:
+                # logging.debug(self.request_context["send_buffer"])
+                self.request_context["send_buffer"] = self.request_context["send_buffer"][
+                    self._socket.send(self.request_context["send_buffer"]):
                 ]
         except socket.error as e:
             if e.errno != errno.EWOULDBLOCK:
@@ -147,29 +140,27 @@ class HttpSocket(Pollable):
     ):
         self._socket.close()
 
+    def on_finish(
+        self,
+    ):
+        logging.debug("on finish was called")
+        return
+
     def fileno(self):
         return self._socket.fileno()
 
     def _get_first_line(
         self,
     ):
-        req, self.recv_buffer = util.recv_line(self.recv_buffer)
+        req, self.request_context["recv_buffer"] = util.recv_line(self.request_context["recv_buffer"])
         if not req:  # means that async server has yet to receive a full line
             return False
         req_comps = req.split(" ", 2)
         # logging.debug(req)
-        logging.debug(req_comps)
+        # logging.debug(req_comps)
         if len(req_comps) != 3:
             raise RuntimeError("Incomplete HTTP protocol")
-        if (
-            (
-                not self._is_client and
-                req_comps[2] != constants.HTTP_SIGNATURE
-            ) or (
-                self._is_client and
-                req_comps[0] != constants.HTTP_SIGNATURE
-            )
-        ):
+        if req_comps[2] != constants.HTTP_SIGNATURE:
             raise RuntimeError("Not HTTP protocol")
 
         method, uri, signature = req_comps
@@ -180,13 +171,13 @@ class HttpSocket(Pollable):
         if not uri or uri[0] != '/' or '\\' in uri:
             raise RuntimeError("Invalid URI")
 
-        self._request_context["uri"] = uri
-        self._request_context["parsed"] = urlparse.urlparse(uri)
+        self.request_context["uri"] = uri
+        self.request_context["parsed"] = urlparse.urlparse(uri)
 
         logging.debug(
             "fd %d called method %s" % (
                 self.fileno(),
-                self._request_context["parsed"].path
+                self.request_context["parsed"].path
             )
         )
 
@@ -198,7 +189,7 @@ class HttpSocket(Pollable):
 
         try:
             self._service_class = REGISTRY.get(
-                self._request_context["parsed"].path,
+                self.request_context["parsed"].path,
                 REGISTRY["*"],
             )()
         except KeyError:
@@ -208,91 +199,68 @@ class HttpSocket(Pollable):
                 message="service not supported",
             )
         finally:
-            self._request_context["req_headers"] = self._service_class.get_header_dict()
-            self._service_class.before_request_headers(self._request_context)
-            self.current_state = self._state_machine[self.current_state]["next"]
+            self.request_context["req_headers"] = self._service_class.get_header_dict()
+            self._current_state = self._state_machine[self._current_state]["next"]
+            self._service_class.before_request_headers(self.request_context)
 
     def _get_headers(
         self,
     ):
-        for i in range(constants.MAX_NUMBER_OF_HEADERS):
-            line, self.recv_buffer = util.recv_line(self.recv_buffer)
-            # logging.debug(line)
-            if line is None: # means that async server has yet to receive all headers
-                break
-            if line == "": # this is the end of headers
-                self.current_state = self._state_machine[self.current_state]["next"]
-                break
-            line = util.parse_header(line)
-            if line[0] in self._request_context["req_headers"]:
-                self._request_context["req_headers"][line[0]] = line[1]
-        else:
-            raise RuntimeError("Exceeded max number of headers")
-        self._service_class.before_request_content(self._request_context)
+        if util.get_headers(self.request_context):
+            self._current_state = self._state_machine[self._current_state]["next"]
+        self._service_class.before_request_content(self.request_context)
 
     def _get_content(
         self,
     ):
-        if self._request_context["content_length"]:
-            data = self.recv_buffer[:min(
-                self._request_context["content_length"],
-                constants.BLOCK_SIZE - len(self._request_context["content"]),
-            )]
-            self._request_context["content"] += data
-            self._request_context["content_length"] -= len(data)
-            self.recv_buffer = self.recv_buffer[len(data):]
-        while self._service_class.handle_content(self._request_context):
+        util.get_content(self.request_context)
+        while self._service_class.handle_content(self.request_context):
             pass
-        if not self._request_context["content_length"]:
-            self._service_class.before_response_status(self._request_context)
-            self.current_state = self._state_machine[self.current_state]["next"]
-        elif not self.recv_buffer:
+        if not self.request_context["content_length"]:
+            self._service_class.before_response_status(self.request_context)
+            self._current_state = self._state_machine[self._current_state]["next"]
+        elif not self.request_context["recv_buffer"]:
             return False
 
     def _send_status_line(
         self,
     ):
-        self.send_buffer += ((
+        self.request_context["send_buffer"] += ((
                 "%s %s %s\r\n"
             ) % (
                 constants.HTTP_SIGNATURE,
-                self._request_context["code"],
-                self._request_context["status"],
+                self.request_context["code"],
+                self.request_context["status"],
             )
         ).encode("utf-8")
-        self._service_class.before_response_headers(self._request_context)
-        self.current_state = self._state_machine[self.current_state]["next"]
+        self._service_class.before_response_headers(self.request_context)
+        self._current_state = self._state_machine[self._current_state]["next"]
 
     def _send_headers(
         self,
     ):
-        for key, value in self._request_context["headers"].iteritems():
-            self.send_buffer += (
-                "%s: %s\r\n" % (key, value)
-            )
-        self.send_buffer += ("\r\n")
-        self._service_class.before_response_content(self._request_context)
-        self.current_state = self._state_machine[self.current_state]["next"]
-        
+        if util.send_headers(self.request_context):
+            self._current_state = self._state_machine[self._current_state]["next"]
+        self._service_class.before_response_content(self.request_context)
 
     def _send_response(
         self,
     ):
         data = None
-        data = self._service_class.response(self._request_context)
+        data = self._service_class.response(self.request_context)
         if data is None:
-            self._service_class.before_terminate(self._request_context)
-            self._reset_request_context()
-            self.current_state = self._state_machine[self.current_state]["next"]
+            self._service_class.before_terminate(self.request_context)
+            self._resetrequest_context()
+            self._current_state = self._state_machine[self._current_state]["next"]
         else:
-            self.send_buffer += data
+            self.request_context["send_buffer"] += data
             return True
     
-    def _reset_request_context(
+    def _resetrequest_context(
         self,
     ):
-        self._request_context["code"] = 200
-        self._request_context["status"] = "OK"
-        self._request_context["req_headers"] = {}
-        self._request_context["response"] = ""
-        self._request_context["headers"] = {}
+        self.request_context["code"] = 200
+        self.request_context["status"] = "OK"
+        self.request_context["req_headers"] = {}
+        self.request_context["response"] = ""
+        self.request_context["headers"] = {}

@@ -81,13 +81,13 @@ class Server(object):
         poller = self._event_object()
         for entry in self._fd_dict.values():
             mask = select.POLLERR
-            if entry.send_buffer:
+            if entry.request_context["send_buffer"]:
                 mask |= select.POLLOUT
             if (
                 entry.state == constants.LISTENER or
                 (
                     entry.state ==constants.ACTIVE and
-                    len(entry.recv_buffer) < self._max_buffer_size
+                    len(entry.request_context["recv_buffer"]) < self._max_buffer_size
                 )
             ):
                 mask |= select.POLLIN
@@ -99,7 +99,6 @@ class Server(object):
     def run(self):
         logging.debug("HTTP server running")
         while self._fd_dict:
-            logging.debug(self._fd_dict)
             try:
                 if self._terminate:
                     self.terminate()
@@ -107,17 +106,17 @@ class Server(object):
                 for entry in self._fd_dict.values():
                     if (
                             entry.state == constants.CLOSING and
-                            not entry.send_buffer
+                            not entry.request_context["send_buffer"]
                         ):
                                 self._unregister(entry)
 
-                for entry in self._fd_dict.values():
-                    try:
-                        while entry.on_receive():
-                            pass
-                    except Exception as e:
-                        logging.error(traceback.format_exc())
-                        self._unregister(entry)
+                # for entry in self._fd_dict.values():
+                    # try:
+                        # while entry.on_receive():
+                            # pass
+                    # except Exception as e:
+                        # logging.error(traceback.format_exc())
+                        # self._unregister(entry)
 
                 events = ()
                 try:
