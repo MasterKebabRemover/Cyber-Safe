@@ -1,10 +1,21 @@
 #!/usr/bin/python
 import Cookie
+import errno
 import random
 import logging
+import traceback
+import socket
 import os
 
 import constants
+from http_client import HttpClient
+
+STATUS_CODES = {
+    200 : "OK",
+    401 : "Unauthorized",
+    404 : "File Not Found",
+    500 : "Internal Error",
+}
 
 class HTTPError(RuntimeError):
     def __init__(
@@ -42,6 +53,10 @@ class FDOpen(object):
     def __exit__(self, type, value, traceback):
         if self._fd:
             os.close(self._fd)
+
+class Disconnect(RuntimeError):
+    def __init__(self, desc = "Disconnect"):
+        super(Disconnect, self).__init__(desc)
 
 def text_to_html(
     text,
@@ -86,7 +101,6 @@ def get_headers(
         finished = False
         for i in range(constants.MAX_NUMBER_OF_HEADERS):
             line, request_context["recv_buffer"] = recv_line(request_context["recv_buffer"])
-            # logging.debug(line)
             if line is None: # means that async server has yet to receive all headers
                 break
             if line == "": # this is the end of headers
@@ -109,14 +123,62 @@ def send_headers(
     request_context["send_buffer"] += ("\r\n")
     return True
 
-def get_content(
+def receive_buffer(entry):
+    free_buffer_size = entry.request_context[
+            "application_context"
+        ][
+            "max_buffer_size"
+        ] - len(
+            entry.request_context["recv_buffer"]
+        )
+    try:
+        t = entry.socket.recv(free_buffer_size)
+        if not t:
+            raise Disconnect(
+                'Disconnected while recieving content'
+            )
+        entry.request_context["recv_buffer"] += t
+
+    except socket.error, e:
+        traceback.print_exc()
+        if e.errno not in (errno.EAGAIN, errno.EWOULDBLOCK):
+            raise
+            
+def add_status(entry, code, extra):
+    entry.request_context["code"] = code
+    entry.request_context["status"] = STATUS_CODES[code]
+
+def ljust_00(data, length):
+    b = bytearray(data)
+    while len(b) < length:
+        b += chr(0)
+    return b
+
+def init_client(
     request_context,
+    client_action,
+    client_block_num,
 ):
-    if request_context["content_length"]:
-        data = request_context["recv_buffer"][:min(
-            request_context["content_length"],
-            constants.BLOCK_SIZE - len(request_context["content"]),
-        )]
-        request_context["content"] += data
-        request_context["content_length"] -= len(data)
-        request_context["recv_buffer"] = request_context["recv_buffer"][len(data):]
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client = HttpClient(
+        socket=s,
+        state=constants.ACTIVE,
+        application_context=request_context["application_context"],
+        fd_dict=request_context["fd_dict"],
+        action=client_action, # must be constants.READ or constants.WRITE
+        block_num=client_block_num, # this is directory root
+        parent=request_context["callable"],
+    )
+    try:
+        s.connect(
+            (
+                request_context["application_context"]["args"].block_device_address,
+                request_context["application_context"]["args"].block_device_port,
+            )
+        )
+        s.setblocking(False)
+    except Exception as e:
+        if e.errno != errno.ECONNREFUSED:
+            raise
+        raise util.HTTPError(500, "Internal Error", "Block Device not found")
+    request_context["fd_dict"][client.fileno()] = client

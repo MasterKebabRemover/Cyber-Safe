@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import logging
 import os
 
 import constants
@@ -24,6 +25,7 @@ class BlockDeviceWrite(ServiceBase):
         sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
+        logging.debug("Writing to block %d" % block)
         if block >= sparse_size / constants.BLOCK_SIZE:
             raise util.HTTPError(500, "Invalid block number")
         elif int(
@@ -47,15 +49,13 @@ class BlockDeviceWrite(ServiceBase):
         self,
         request_context,
     ):
-        while request_context["content"]:
-            request_context["content"] = request_context["content"][os.write(
+        request_context["content_length"] -= len(request_context["recv_buffer"])
+        logging.debug(request_context["recv_buffer"])
+        while request_context["recv_buffer"]:
+            request_context["recv_buffer"] = request_context["recv_buffer"][os.write(
                 request_context["fd"],
-                request_context["content"],
+                request_context["recv_buffer"],
             ):]
-        
-    def before_terminate(
-        self,
-        request_context,
-    ):
-        if request_context.get("fd"):
-            os.close(request_context["fd"])
+        if request_context["content_length"] > 0:
+            return False
+        return None

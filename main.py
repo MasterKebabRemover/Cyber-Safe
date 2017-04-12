@@ -79,7 +79,7 @@ def parse_args():
     parser.add_argument(
         "--max-buffer-size",
         type=int,
-        default=1024*1024,
+        default=1024*4,
         help="max size of async_server read buffer. Default: %(default)s",
     )
     parser.add_argument(
@@ -90,7 +90,7 @@ def parse_args():
     parser.add_argument(
         "--sparse-size",
         type=int,
-        default=384*constants.MB,
+        default=constants.BLOCK_SIZE*32768,
         help="size of sparse file in MB"
     )
     parser.add_argument(
@@ -115,20 +115,28 @@ def parse_args():
     args.base = os.path.normpath(os.path.realpath(args.base))
     return args
 
+def init_block_device(filename, filesize):
+    with util.FDOpen(
+        filename,
+        os.O_RDWR | os.O_CREAT,
+        0o666,
+    ) as sparse:
+        os.lseek(sparse, filesize, 0)
+        os.write(sparse, bytearray(constants.BLOCK_SIZE))
+        os.lseek(sparse, 0, 0)
+        os.write(sparse, bytearray([1, 1])) # for bitmap and directory root
+
 
 def __main__():
     args = parse_args()
 
     if args.block_device:
-        with util.FDOpen(
+        init_block_device(
             args.sparse_file,
-            os.O_RDWR | os.O_CREAT,
-            0o666,
-        ) as sparse:
-            os.lseek(sparse, args.sparse_size, 0)
-            os.write(sparse, bytearray(1))
-            os.lseek(sparse, 0, 0)
-            os.write(sparse, bytearray([1, 1, 1, 1])) # for bitmap*3 and directory root
+            args.sparse_size,
+        )
+        args.bind_address = args.block_device_address
+        args.bind_port = args.block_device_port
     
     if args.foreground:
         daemonize()

@@ -21,7 +21,6 @@ class BlockDeviceRead(ServiceBase):
         self,
         request_context,
     ):
-
         sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
@@ -39,6 +38,12 @@ class BlockDeviceRead(ServiceBase):
                 os.SEEK_SET,
             )
 
+    def before_response_headers(
+        self,
+        request_context,
+    ):
+        request_context["headers"][constants.CONTENT_LENGTH] = constants.BLOCK_SIZE
+
     def response(
         self,
         request_context,
@@ -51,11 +56,4 @@ class BlockDeviceRead(ServiceBase):
                     break
                 data += read_buffer
             request_context["block"] = None
-            return data
-
-    def before_terminate(
-        self,
-        request_context,
-    ):
-        if request_context.get("fd"):
-            os.close(request_context["fd"])
+            request_context["response"] = data

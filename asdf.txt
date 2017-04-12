@@ -1,0 +1,7 @@
+DEBUG:root:main module called - server.run()
+DEBUG:root:HTTP server running
+DEBUG:root:Terminating
+DEBUG:root:Unregistered fd 4
+
+DEBUG:root:server terminated
+

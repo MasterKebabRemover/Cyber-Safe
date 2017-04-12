@@ -23,15 +23,13 @@ class ServiceBase(object):
         self,
         request_context,
     ):
-        request_context["content_length"] = int(
-            request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
-        )
+        pass
 
     def handle_content(
         self,
         request_context,
     ):
-        return False
+        pass
 
     def before_response_status(
         self,
@@ -58,10 +56,7 @@ class ServiceBase(object):
         self,
         request_context,
     ):
-        result = request_context.get("response")
-        if result is not None:
-            del request_context["response"]
-        return result
+        pass
 
     def before_terminate(
         self,

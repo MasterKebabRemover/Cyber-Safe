@@ -1,9 +1,4 @@
 class Pollable(object):
-    request_context = {
-        "recv_buffer": "",
-        "send_buffer": "",
-    }
-
     def on_read(self):
         return
 
@@ -19,5 +14,5 @@ class Pollable(object):
     def fileno(self):
         return
 
-    def on_receive(self):
+    def on_idle(self):
         return

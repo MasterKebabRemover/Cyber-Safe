@@ -49,6 +49,7 @@ class Server(object):
         logging.debug("Unregistered fd %s\n", entry.fileno())
         del self._fd_dict[entry.fileno()]
         entry.on_close()
+        entry.request_context["state"] = constants.CLOSING
 
     def _get_new_connection(self, entry):
         try:
@@ -75,18 +76,20 @@ class Server(object):
         logging.debug("Terminating")
         self._terminate = False
         for entry in self._fd_dict.values():
-            entry.state = constants.CLOSING
+            entry.request_context["state"] = constants.CLOSING
 
     def create_poller(self):
         poller = self._event_object()
         for entry in self._fd_dict.values():
             mask = select.POLLERR
-            if entry.request_context["send_buffer"]:
+            if (
+                entry.request_context["send_buffer"]
+            ):
                 mask |= select.POLLOUT
             if (
-                entry.state == constants.LISTENER or
+                entry.request_context["state"] == constants.LISTENER or
                 (
-                    entry.state ==constants.ACTIVE and
+                    entry.request_context["state"] ==constants.ACTIVE and
                     len(entry.request_context["recv_buffer"]) < self._max_buffer_size
                 )
             ):
@@ -105,18 +108,19 @@ class Server(object):
 
                 for entry in self._fd_dict.values():
                     if (
-                            entry.state == constants.CLOSING and
+                            entry.request_context["state"] == constants.CLOSING and
                             not entry.request_context["send_buffer"]
                         ):
-                                self._unregister(entry)
+                            self._unregister(entry)
 
-                # for entry in self._fd_dict.values():
-                    # try:
-                        # while entry.on_receive():
-                            # pass
-                    # except Exception as e:
-                        # logging.error(traceback.format_exc())
-                        # self._unregister(entry)
+                for entry in self._fd_dict.values():
+                    try:
+                        # logging.debug(entry)
+                        while entry.request_context["state"] != constants.SLEEPING and entry.on_idle():
+                            pass
+                    except Exception as e:
+                        logging.error(traceback.format_exc())
+                        self._unregister(entry)
 
                 events = ()
                 try:

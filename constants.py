@@ -7,7 +7,9 @@
     CLOSING,
     LISTENER,
     ACTIVE,
-) = range(7)
+    SLEEPING,
+    WAITING_FOR_DATA
+) = range(9)
 
 (
     GET_FIRST_LINE,
@@ -16,7 +18,14 @@
     SEND_STATUS_LINE,
     SEND_HEADERS,
     SEND_RESPONSE,
-) = range(6)
+    TERMINATE,
+) = range(7)
+
+(
+    CALL_SERVICE_AGAIN,
+    RETURN_AND_WAIT,
+    MOVE_TO_NEXT_STATE,
+) = range(3)
 
 MIME_MAPPING = {
     'html': 'text/html',
@@ -28,6 +37,7 @@ USERS = {
     "ron": "spaghetti",
     "alon": "balon",
 }
+[READ, WRITE] = ["bd_client_read", "bd_client_write"]
 MODULE_DICT = {
     1: [
         "block_device_read_service",
@@ -44,8 +54,8 @@ MODULE_DICT = {
         "secret_service2",
     ],
     "client": [
-        "client_read",
-        "client_write",
+        "bd_client_read",
+        "bd_client_write",
     ],
 }
 
@@ -64,3 +74,5 @@ AUTHORIZATION = "Authorization"
 UNATHORIZED = "Unathorized"
 KB = 1024
 MB = 1024*1024
+FILENAME_LENGTH = 60
+ROOT_ENTRY_SIZE = 64

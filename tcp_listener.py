@@ -1,11 +1,16 @@
 #!/usr/bin/python
 import socket
+import logging
 
 import constants
 from pollable import Pollable
 
 class TCPListener(Pollable):
-    state = constants.LISTENER
+    request_context = {
+        "state": constants.LISTENER,
+        "recv_buffer": "",
+        "send_buffer": "",
+    }
     def __init__(
         self,
         bind_address,
@@ -33,14 +38,19 @@ class TCPListener(Pollable):
                 application_context=self._application_context,
                 fd_dict=self._fd_dict
             )
+        # logging.debug("listener created socket at %d" % hash(self._fd_dict[client.fileno()]))
+
     def on_write(self):
         pass
 
     def on_error(self):
-        self.state = constants.CLOSING
+        self.request_context["state"] = constants.CLOSING
 
     def on_close(self):
         self.fd.close()
 
     def fileno(self):
         return self.fd.fileno()
+
+    def on_idle(self):
+        pass
