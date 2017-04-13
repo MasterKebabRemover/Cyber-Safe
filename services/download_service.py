@@ -4,6 +4,7 @@ import os
 import socket
 import struct
 import logging
+import urlparse
 
 import constants
 import util
@@ -11,15 +12,15 @@ from util import HTTPError
 from service_base import ServiceBase
 from http_client import HttpClient
 
-class FileService(ServiceBase):
+class Download(ServiceBase):
     @staticmethod
     def name():
-        return "*"
+        return "/download"
 
     def __init__(
         self,
     ):
-        super(FileService, self).__init__()
+        super(Download, self).__init__()
         self._dir_block = None
         self._dir_index = 0
 
@@ -33,7 +34,8 @@ class FileService(ServiceBase):
         self,
         request_context,
     ):
-        request_context["file_name"] = str(request_context["uri"][1:]) # remove the '/'
+        qs = urlparse.parse_qs(request_context["parsed"].query)
+        request_context["file_name"] = str(qs["filename"][0])
         request_context["state"] = constants.SLEEPING
         request_context["wake_up_function"] = self._before_dir
         util.init_client(
@@ -98,6 +100,21 @@ class FileService(ServiceBase):
         request_context,
     ):
         request_context["response"] = request_context["block"]
+
+    def before_response_headers(
+        self,
+        request_context,
+    ):
+        file_type = request_context["file_name"].split(".")
+        if len(file_type) == 1:
+            file_type.append("*")
+        request_context["headers"][constants.CONTENT_TYPE] = constants.MIME_MAPPING.get(
+            file_type[1],
+            constants.MIME_MAPPING["*"],
+        )
+        request_context["headers"]["Content-Disposition"] = (
+            "attachment; filename=%s" % request_context["file_name"]
+        )
             
     def response(
         self,

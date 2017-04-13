@@ -4,6 +4,7 @@ import socket
 import logging
 import urlparse
 import traceback
+import collections
 import importlib
 
 import constants
@@ -194,18 +195,13 @@ class HttpSocket(Pollable, Collable):
         REGISTRY = {
             service.name(): service for service in service_base.ServiceBase.__subclasses__()
         }
-        if not REGISTRY.get("*"):
-            REGISTRY["*"] = service_base.ServiceBase
         try:
-            self.service_class = REGISTRY.get(
-                self.request_context["parsed"].path,
-                REGISTRY["*"],
-            )()
+            self.service_class = REGISTRY[self.request_context["parsed"].path]()
         except KeyError:
             raise util.HTTPError(
                 code=500,
                 status="Internal Error",
-                message="service not supported",
+                message="service \"%s\" not supported" % self.request_context["parsed"].path,
             )
         finally:
             self.service_class.before_request_headers(self.request_context)

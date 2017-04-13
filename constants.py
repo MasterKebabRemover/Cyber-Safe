@@ -32,6 +32,7 @@ MIME_MAPPING = {
     'png': 'image/png',
     'txt': 'text/plain',
     'ico': 'image/x-icon',
+    '*': 'text/plain',
 }
 USERS = {
     "ron": "spaghetti",
@@ -46,12 +47,13 @@ MODULE_DICT = {
     0: [
         "clock_service",
         "counter_service",
-        "file_service",
+        "download_service",
         "file_upload_service",
         "login_service",
         "multiply_service",
         "secret_service1",
         "secret_service2",
+        "list_files_service",
     ],
     "client": [
         "bd_client_read",

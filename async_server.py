@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import contextlib
+import collections
 import errno
 import logging
 import select
@@ -121,7 +122,6 @@ class Server(object):
                     except Exception as e:
                         logging.error(traceback.format_exc())
                         self._unregister(entry)
-
                 events = ()
                 try:
                     for fd, flag in self.create_poller().poll(self._timeout):
