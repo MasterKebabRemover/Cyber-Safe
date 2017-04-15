@@ -15,9 +15,10 @@ FORM_HEAD = "<h1>File List:</h1><form>"
 FORM_ENTRY = "<input type=\"radio\" name=\"filename\" value=\"R1\"> R2<br>"
 FORM_ENDING = (
     "<br><font size=\"5\">Operations: </font><ul>" + 
-    "<li><input type=\"submit\" formaction=\"download\" formmethod=\"get\" value=\"Download\"></li>" +  
+    "<li><input type=\"submit\" formaction=\"download\" formmethod=\"get\" value=\"Download\"></li>" +
+    "<li><input type=\"submit\" formaction=\"delete\" formmethod=\"get\" value=\"Delete\"></li>" +
     "</ul></form><br>" +
-    "<font size=\"5\">File Uplaod: </font><br><br>" +
+    "<font size=\"5\">File Upload: </font><br><br>" +
     "<form action=\"fileupload\" enctype=\"multipart/form-data\" method=\"post\">" +
     "<input type=\"file\" name=\"fileupload\"><br><br>" + 
     "<input type=\"submit\" value=\"Submit\"></form>"

@@ -54,6 +54,7 @@ MODULE_DICT = {
         "secret_service1",
         "secret_service2",
         "list_files_service",
+        "delete_service",
     ],
     "client": [
         "bd_client_read",

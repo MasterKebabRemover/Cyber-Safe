@@ -204,9 +204,9 @@ class HttpSocket(Pollable, Collable):
                 message="service \"%s\" not supported" % self.request_context["parsed"].path,
             )
         finally:
+            self._current_state = self._state_machine[self._current_state]["next"]
             self.service_class.before_request_headers(self.request_context)
             self.request_context["req_headers"] = self.service_class.get_header_dict()
-            self._current_state = self._state_machine[self._current_state]["next"]
 
     def _get_headers(
         self,

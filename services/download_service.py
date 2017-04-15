@@ -35,6 +35,8 @@ class Download(ServiceBase):
         request_context,
     ):
         qs = urlparse.parse_qs(request_context["parsed"].query)
+        if not qs.get("filename"):
+            raise util.HTTPError(500, "Internal Error", "file name missing")
         request_context["file_name"] = str(qs["filename"][0])
         request_context["state"] = constants.SLEEPING
         request_context["wake_up_function"] = self._before_dir
