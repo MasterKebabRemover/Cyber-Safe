@@ -128,8 +128,8 @@ class DeleteService(ServiceBase):
         request_context,
     ):
 
-        request_context["response"] = util.text_to_html(
-            "file %s was deleted successfully" % request_context["filename"]
-        )
+        request_context["response"] = "file %s was deleted successfully" % request_context["filename"]
+        request_context["response"] += constants.BACK_TO_LIST
+        request_context["response"] = util.text_to_html(request_context["response"])
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(DeleteService, self).before_response_headers(request_context)

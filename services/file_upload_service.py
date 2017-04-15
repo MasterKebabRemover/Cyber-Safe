@@ -295,6 +295,7 @@ class FileUploadService(ServiceBase):
     ):
         if request_context["code"] == 200:
             request_context["response"] += "Were uploaded successfully"
+        request_context["response"] += constants.BACK_TO_LIST
         request_context["response"] = util.text_to_html(request_context["response"])
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(FileUploadService, self).before_response_headers(request_context)

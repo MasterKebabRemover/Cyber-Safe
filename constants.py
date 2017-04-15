@@ -79,3 +79,9 @@ KB = 1024
 MB = 1024*1024
 FILENAME_LENGTH = 60
 ROOT_ENTRY_SIZE = 64
+
+BACK_TO_LIST = (
+    "<br><form method=\"get\" action=\"list\">" +
+    "<input type=\"submit\" value=\"Back to the file list\">" +
+    "</form>"
+)
