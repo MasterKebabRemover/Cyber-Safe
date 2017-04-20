@@ -21,8 +21,6 @@ class Download(ServiceBase):
         self,
     ):
         super(Download, self).__init__()
-        self._dir_block = None
-        self._dir_index = 0
 
     def before_request_headers(
         self,
@@ -39,63 +37,62 @@ class Download(ServiceBase):
             raise util.HTTPError(500, "Internal Error", "file name missing")
         request_context["file_name"] = str(qs["filename"][0])
         request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._before_dir
+        request_context["wake_up_function"] = self._after_root
         util.init_client(
             request_context,
             client_action=constants.READ, 
             client_block_num=1,
         )
 
-    def _before_dir(
+    def _after_root(
         self,
         request_context,
     ):
         directory_root = request_context["block"]
         index = 0
-        dir_num = None
+        main_num = None
         while index < constants.BLOCK_SIZE:
-            current_name = bytearray(directory_root[index:index + constants.FILENAME_LENGTH])
-            current_name = current_name.rstrip('\x00')
-            if current_name == "":
+            entry = util.parse_root_entry(directory_root[
+                index: index + constants.ROOT_ENTRY_SIZE
+            ])
+            if entry["name"] == "":
                 index += constants.ROOT_ENTRY_SIZE
                 continue
             if (
-                current_name != request_context["file_name"]
+                entry["name"] != request_context["file_name"]
             ):
                 index += constants.ROOT_ENTRY_SIZE
             else:
-                dir_num = struct.unpack(">I", directory_root[
-                    index + constants.FILENAME_LENGTH:
-                    index + constants.FILENAME_LENGTH + 4 # size of dir_num in bytes
-                ])[0]
+                main_num = entry["main_block"]
+                request_context["headers"][constants.CONTENT_LENGTH] = entry["size"]
                 break
         # logging.debug(current_name)
-        # logging.debug(dir_num)
-        if dir_num is None:
+        # logging.debug(main_num)
+        if main_num is None:
             raise HTTPError(500, "Internal Error", "File %s does not exist" % request_context["file_name"])
         request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._handle_dir_block
+        request_context["wake_up_function"] = self._handle_main_block
         util.init_client(
             request_context,
             client_action=constants.READ,
-            client_block_num=dir_num,
+            client_block_num=main_num,
         )
+
+    def _handle_main_block(
+        self,
+        request_context,
+    ):
+        self._main_block = request_context["block"]
+        self._main_index = 0
+        self._dir_index = 0
+        self._dir_block = None
 
     def _handle_dir_block(
         self,
         request_context,
     ):
         self._dir_block = request_context["block"]
-        blocks_in_file = 0
-        index = 0
-        while index < len(self._dir_block):
-            dir_num = struct.unpack(">I", self._dir_block[
-                    index: index+4 # size of dir_num in bytes
-                ])[0]
-            if dir_num != 0:
-                blocks_in_file += 1
-            index += 4
-        request_context["headers"][constants.CONTENT_LENGTH] = blocks_in_file*constants.BLOCK_SIZE
+        self._dir_index = 0
 
     def _handle_block(
         self,
@@ -117,27 +114,54 @@ class Download(ServiceBase):
         request_context["headers"]["Content-Disposition"] = (
             "attachment; filename=%s" % request_context["file_name"]
         )
-            
-    def response(
+
+    def _next_dir_block(
         self,
         request_context,
     ):
-        if self._dir_block is None:
-            return None
-        if self._dir_index >= constants.BLOCK_SIZE:
-            return None
         current_block_num = struct.unpack(
-                ">I",
-                self._dir_block[self._dir_index: self._dir_index + 4],
-            )[0]
+            ">I",
+            self._main_block[self._main_index: self._main_index + 4]
+        )[0]
+        self._main_index += 4
         if current_block_num == 0:
             return None
         request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._handle_block
+        request_context["wake_up_function"] = self._handle_dir_block
         util.init_client(
             request_context,
             client_action=constants.READ,
             client_block_num=current_block_num,
         )
-        self._dir_index += 4
-        return constants.RETURN_AND_WAIT
+        return current_block_num
+
+    def response(
+        self,
+        request_context,
+    ):
+        if self._main_index >= constants.BLOCK_SIZE:
+            return None
+        if self._dir_block is None or self._dir_index >= len(self._dir_block):
+            # get next dir_block
+            if not self._next_dir_block(request_context):
+                return None
+            return constants.RETURN_AND_WAIT
+        else:
+            current_block_num = struct.unpack(
+                    ">I",
+                    self._dir_block[self._dir_index: self._dir_index + 4],
+                )[0]
+            if current_block_num == 0:
+                if not self._next_dir_block(request_context):
+                    return None
+                return constants.RETURN_AND_WAIT
+
+            request_context["state"] = constants.SLEEPING
+            request_context["wake_up_function"] = self._handle_block
+            util.init_client(
+                request_context,
+                client_action=constants.READ,
+                client_block_num=current_block_num,
+            )
+            self._dir_index += 4
+            return constants.RETURN_AND_WAIT

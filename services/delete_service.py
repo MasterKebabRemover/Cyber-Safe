@@ -65,13 +65,9 @@ class DeleteService(ServiceBase):
         index = 0
         dir_num = None
         while index < len(self._root):
-            current_name = bytearray(self._root[index:index + constants.FILENAME_LENGTH])
-            current_name = current_name.rstrip('\x00')
-            if current_name == request_context["filename"]:
-                dir_num = struct.unpack(">I", self._root[
-                        index + constants.FILENAME_LENGTH:
-                        index + constants.FILENAME_LENGTH + 4 # size of dir_num in bytes
-                    ])[0]
+            entry = util.parse_root_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
+            if entry["name"] == request_context["filename"]:
+                dir_num = entry["main_block"]
                 break
             index += constants.ROOT_ENTRY_SIZE
         if dir_num is None:
@@ -79,21 +75,65 @@ class DeleteService(ServiceBase):
 
         # delete entry, turn off directory block bit in bitmap and request directory block
         self._bitmap[dir_num] = chr(0)
-        self._root[index: index + constants.ROOT_ENTRY_SIZE] = bytearray(constants.ROOT_ENTRY_SIZE)
+        self._root[index: index + constants.ROOT_ENTRY_SIZE] = util.create_root_entry(
+            {"clean_entry": True}
+        )
         request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_dir_block
+        request_context["wake_up_function"] = self._after_main_block
         util.init_client(
             request_context,
             client_action=constants.READ, 
             client_block_num=dir_num,
         )
 
-    def _after_dir_block(
+    def _after_main_block(
         self,
         request_context,
     ):
-        (self._dir_block, request_context["block"]) = (request_context["block"], "")
-        # go over dir_block and turn off all corresponding bits in bitmap
+        (self._main_block, request_context["block"]) = (request_context["block"], "")
+        # go over main_block and turn off all corresponding bits in bitmap
+        self._dir_block_list = []
+        index = 0
+        while index < len(self._main_block):
+            block_num = struct.unpack(">I", self._main_block[index:index+4])[0]
+            if block_num == 0:
+                break
+            self._bitmap[block_num] = chr(0)
+            # save in order to go over all dir blocks
+            self._dir_block_list.append(block_num)
+            index += 4
+        self._delete_dir_blocks(request_context)
+
+    def _delete_dir_blocks(
+        self,
+        request_context,
+    ):
+        if not self._dir_block_list:
+            self._update_disk(request_context)
+        else:
+            next_block = self._dir_block_list.pop()
+
+            request_context["state"] = constants.SLEEPING
+            request_context["wake_up_function"] = self._handle_dir_block
+            util.init_client(
+                request_context,
+                client_action=constants.READ, 
+                client_block_num=next_block,
+            )
+
+    def _handle_dir_block(
+        self,
+        request_context,
+    ):
+        self._dir_block = request_context["block"]
+        request_context["block"] = ""
+        self._delete_dir_block(request_context)
+
+    def _delete_dir_block(
+        self,
+        request_context,
+    ):
+        # go over dir_block and turn off all data bits in bitmap
         index = 0
         while index < len(self._dir_block):
             block_num = struct.unpack(">I", self._dir_block[index:index+4])[0]
@@ -101,8 +141,7 @@ class DeleteService(ServiceBase):
                 break
             self._bitmap[block_num] = chr(0)
             index += 4
-
-        self._update_disk(request_context)
+        self._delete_dir_blocks(request_context)
 
     def _update_disk(
         self,

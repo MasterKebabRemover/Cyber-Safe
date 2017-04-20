@@ -105,7 +105,6 @@ class HttpSocket(Pollable, Collable):
             util.add_status(self, 500, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase()
-
         if call_again is None:
             call_again = True
         return call_again

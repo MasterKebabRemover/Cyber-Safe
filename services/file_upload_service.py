@@ -135,7 +135,7 @@ class FileUploadService(ServiceBase):
     ):
         self._root = bytearray(request_context["block"])
         # check that no files exist with same name
-        # find place in bitmap for dir block of new file:
+        # find place in bitmap for main block of new file:
         index = 0
         while index < len(self._bitmap):
             if self._bitmap[index] == 1:
@@ -145,31 +145,31 @@ class FileUploadService(ServiceBase):
             break
         else:
             raise HTTPError(500, "Internal Error", "no room in disk")
-        self._dir_block_index = index
+        self._main_block_num = index
 
         # create entry for new file in dir root
-        (dir_block_num, index) = (index, 0)
+        index = 0
         created = False
         while index < len(self._root):
-            current_name = bytearray(self._root[index:index + constants.FILENAME_LENGTH])
-            current_name = current_name.rstrip('\x00')
-            if current_name != "":
-                if current_name == bytearray(request_context["filename"], 'utf-8'):
+            entry = util.parse_root_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
+            if entry["name"] != "":
+                if entry["name"] == bytearray(request_context["filename"], 'utf-8'):
                     raise HTTPError(500, "Internal Error", "File %s already exists" % request_context["filename"])
             elif not created:
                 created = True
-                filename = bytearray(request_context["filename"], 'utf-8')
-                while len(filename) < 60:
-                    filename += chr(0)
-                filename += struct.pack(">I", dir_block_num)
-                self._root[index: index + constants.ROOT_ENTRY_SIZE] = filename
+                # save parameters to later create entry
+                request_context["main_block_num"] = self._main_block_num
+                request_context["dir_root_index"] = index
             index += constants.ROOT_ENTRY_SIZE
         if not created:
             raise HTTPError(500, "Internal Error", "no room in disk")
-        # create dir block for new file to later write to disk
-        self._dir_block = bytearray(4096)
-        self._current_index = 0
+        # create main block for new file to later write to disk
+        self._main_block = bytearray(constants.BLOCK_SIZE)
+        self._dir_block = bytearray(constants.BLOCK_SIZE)
+        self._main_index = 0
+        self._dir_index = 0
         request_context["block"] = ""
+        request_context["file_size"] = 0
         self._current_state = self._state_machine[self._current_state]["next"]
 
     def _write_file(
@@ -185,7 +185,9 @@ class FileUploadService(ServiceBase):
 
         index = request_context["recv_buffer"].find(request_context["boundary"])
         if index == 0:
+            old_length = len(request_context["block"])
             request_context["block"] = util.ljust_00(request_context["block"], constants.BLOCK_SIZE)
+            request_context["file_size"] -= (len(request_context["block"]) - old_length)
             self._write_block(request_context)
             self._current_state = self._state_machine[self._current_state]["next"]
             return True
@@ -208,42 +210,76 @@ class FileUploadService(ServiceBase):
         self,
         request_context,
     ):
-        if self._current_index > constants.BLOCK_SIZE:
-            raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
-        #find free block in bitmap
-        index = 0
-        while index < len(self._bitmap):
-            if self._bitmap[index] == 1:
-                index +=1
-                continue
-            self._bitmap[index] = chr(1)
-            break
-        if index == len(self._bitmap):
-            raise HTTPError(500, "Internal Error", "no room in disk")
+        if self._dir_index >= constants.BLOCK_SIZE:
+            # reached end of dir_block, write it and get new one
+            if self._main_index >= constants.BLOCK_SIZE:
+                raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
+            next_bitmap_index = self._next_bitmap_index()
+            self._main_block[self._main_index: self._main_index + 4] = struct.pack(
+                ">I",
+                next_bitmap_index,
+            )
+            self._main_index += 4
+            request_context["block"] = self._dir_block
+            util.init_client(
+                request_context,
+                client_action=constants.WRITE, 
+                client_block_num = next_bitmap_index,
+            )
+            self._dir_block = bytearray(constants.BLOCK_SIZE)
+            self._dir_index = 0
+
+        request_context["file_size"] += constants.BLOCK_SIZE
+
+        next_bitmap_index = self._next_bitmap_index()
         #also mark new block in dir block
-        self._dir_block[self._current_index: self._current_index + 4] = struct.pack(
+        self._dir_block[self._dir_index: self._dir_index + 4] = struct.pack(
             ">I",
-            index,
+            next_bitmap_index,
         )
-        self._current_index += 4
+        self._dir_index += 4
         #write data to new block
         request_context["state"] = constants.SLEEPING
         util.init_client(
             request_context,
             client_action=constants.WRITE, 
-            client_block_num = index,
+            client_block_num = next_bitmap_index,
         )
 
     def _update_disk(
         self,
         request_context,
     ):
+        # create root entry for file using data saved and calculated
+        new_entry = util.create_root_entry({
+            "name": request_context["filename"],
+            "size": request_context["file_size"],
+            "main_block": request_context["main_block_num"],
+        })
+        index = request_context["dir_root_index"]
+        self._root[index: index + constants.ROOT_ENTRY_SIZE] = new_entry
+
+        # write last dir block and mark it in main block
+        if self._main_index >= constants.BLOCK_SIZE:
+            raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
+        next_bitmap_index = self._next_bitmap_index()
         request_context["block"] = self._dir_block
         request_context["state"] = constants.SLEEPING
         util.init_client(
             request_context,
             client_action=constants.WRITE, 
-            client_block_num = self._dir_block_index,
+            client_block_num = next_bitmap_index,
+        )
+        self._main_block[self._main_index: self._main_index + 4] = struct.pack(
+            ">I",
+            next_bitmap_index,
+        )
+
+        request_context["block"] = self._main_block
+        util.init_client(
+            request_context,
+            client_action=constants.WRITE, 
+            client_block_num = self._main_block_num,
         )
         if self._bitmap and self._root:
             request_context["block"] = self._bitmap
@@ -309,3 +345,17 @@ class FileUploadService(ServiceBase):
                 constants.CONTENT_TYPE:None,
             }
         )
+
+    def _next_bitmap_index(
+        self,
+    ):
+        index = 0
+        while index < len(self._bitmap):
+            if self._bitmap[index] == 1:
+                index +=1
+                continue
+            self._bitmap[index] = chr(1)
+            break
+        if index == len(self._bitmap):
+            raise HTTPError(500, "Internal Error", "no room in disk")
+        return index

@@ -77,8 +77,15 @@ AUTHORIZATION = "Authorization"
 UNATHORIZED = "Unathorized"
 KB = 1024
 MB = 1024*1024
-FILENAME_LENGTH = 60
+
+FILENAME_LENGTH = 56
+FILE_SIZE_LENGTH = 4
+MAIN_BLOCK_NUM = 4
 ROOT_ENTRY_SIZE = 64
+"""
+root entry goes:
+FILENAME, FILE_SIZE, MAIN_BLOCK_NUM
+"""
 
 BACK_TO_LIST = (
     "<br><form method=\"get\" action=\"list\">" +

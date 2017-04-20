@@ -57,3 +57,12 @@ class BlockDeviceRead(ServiceBase):
                 data += read_buffer
             request_context["block"] = None
             request_context["response"] = data
+
+    def before_terminate(
+        self,
+        request_context,
+    ):
+        try:
+            os.close(request_context["fd"])
+        except OSError:
+            pass

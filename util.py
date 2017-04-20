@@ -6,6 +6,7 @@ import logging
 import traceback
 import socket
 import os
+import struct
 
 import constants
 from http_client import HttpClient
@@ -180,5 +181,49 @@ def init_client(
     except Exception as e:
         if e.errno != errno.ECONNREFUSED:
             raise
-        raise util.HTTPError(500, "Internal Error", "Block Device not found")
+        raise HTTPError(500, "Internal Error", "Block Device not found")
     request_context["fd_dict"][client.fileno()] = client
+
+def create_root_entry(
+    parameter_dict
+):
+    if parameter_dict.get("clean_entry"):
+        return bytearray(constants.ROOT_ENTRY_SIZE)
+    entry = bytearray(parameter_dict["name"], 'utf-8')
+    while len(entry) < constants.ROOT_ENTRY_SIZE:
+        entry += chr(0)
+    entry[
+        constants.FILENAME_LENGTH:
+        constants.FILENAME_LENGTH + constants.FILE_SIZE_LENGTH
+    ] = struct.pack(">I", parameter_dict["size"])
+    entry[
+        constants.FILENAME_LENGTH + constants.FILE_SIZE_LENGTH:
+        constants.FILENAME_LENGTH + constants.FILE_SIZE_LENGTH + constants.MAIN_BLOCK_NUM
+    ] = struct.pack(">I", parameter_dict["main_block"])
+    return entry
+
+def parse_root_entry(
+    entry
+):
+    if len(entry) != constants.ROOT_ENTRY_SIZE:
+        raise HTTPError(500, "Internal Error", "Bad entry")
+    return {
+        "name": "".join(struct.unpack(
+            "s"*constants.FILENAME_LENGTH,
+            entry[:constants.FILENAME_LENGTH]
+        )).rstrip('\x00'),
+        "size": struct.unpack(">I", entry[
+            constants.FILENAME_LENGTH: 
+            constants.FILENAME_LENGTH + constants.FILE_SIZE_LENGTH
+        ])[0],
+        "main_block": struct.unpack(">I", entry[
+            constants.FILENAME_LENGTH + constants.FILE_SIZE_LENGTH:
+            constants.FILENAME_LENGTH + constants.FILE_SIZE_LENGTH + constants.MAIN_BLOCK_NUM
+        ])[0],
+    }
+
+FILENAME_LENGTH = 56
+FILE_SIZE_LENGTH = 4
+MAIN_BLOCK_NUM = 4
+ROOT_ENTRY_SIZE = 64
+    

@@ -11,14 +11,27 @@ from util import HTTPError
 from service_base import ServiceBase
 from http_client import HttpClient
 
-FORM_HEAD = "<h1>File List:</h1><form>"
-FORM_ENTRY = "<input type=\"radio\" name=\"filename\" value=\"R1\"> R2<br>"
+FORM_HEAD = (
+    "<h1>File List:</h1><form>" + 
+    "<table border=\"1\"><tr>" + 
+    "<th>File Name</th><th>File Size (Bytes)</th>" + 
+    "</tr>"
+)
+
+FORM_ENTRY = (
+    "<tr><td><div class=\"radio\">" + 
+    "<label><input type=\"radio\" value=\"R1\" name=\"filename\">R1</label></div></td>" + 
+    "<td><div class=\"radiotext\">" + 
+    "<label for=\"regular\">R2</label></div></td></tr>"
+)
+
 FORM_ENDING = (
+    "</table>" + 
     "<br><font size=\"5\">Operations: </font><ul>" + 
     "<li><input type=\"submit\" formaction=\"download\" formmethod=\"get\" value=\"Download\"></li>" +
     "<li><input type=\"submit\" formaction=\"delete\" formmethod=\"get\" value=\"Delete\"></li>" +
     "</ul></form><br>" +
-    "<font size=\"5\">File Upload: </font><br><br>" +
+    "<font size=\"5\">File Upload: </font><br>" +
     "<form action=\"fileupload\" enctype=\"multipart/form-data\" method=\"post\">" +
     "<input type=\"file\" name=\"fileupload\"><br><br>" + 
     "<input type=\"submit\" value=\"Submit\"></form>"
@@ -54,10 +67,9 @@ class ListFiles(ServiceBase):
         file_list = FORM_HEAD
         index = 0
         while index < len(self._root):
-            current_name = bytearray(self._root[index:index + constants.FILENAME_LENGTH])
-            current_name = current_name.rstrip('\x00')
-            if current_name != "":
-                file_list += FORM_ENTRY.replace("R1", current_name).replace("R2", current_name)
+            entry = util.parse_root_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
+            if entry["name"] != "":
+                file_list += FORM_ENTRY.replace("R1", entry["name"]).replace("R2", str(entry["size"]))
             index += constants.ROOT_ENTRY_SIZE
         file_list += FORM_ENDING
         request_context["response"] = util.text_to_html(file_list)

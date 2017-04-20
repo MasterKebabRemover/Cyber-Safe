@@ -57,3 +57,12 @@ class BlockDeviceWrite(ServiceBase):
         if request_context["content_length"] > 0:
             return False
         return None
+
+    def before_terminate(
+        self,
+        request_context,
+    ):
+        try:
+            os.close(request_context["fd"])
+        except OSError:
+            pass
