@@ -75,6 +75,7 @@ CONTENT_TYPE = "Content-Type"
 CONTENT_LENGTH = "Content-Length"
 AUTHORIZATION = "Authorization"
 UNATHORIZED = "Unathorized"
+CONFIG_NAME = "config.ini"
 KB = 1024
 MB = 1024*1024
 

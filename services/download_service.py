@@ -17,11 +17,6 @@ class Download(ServiceBase):
     def name():
         return "/download"
 
-    def __init__(
-        self,
-    ):
-        super(Download, self).__init__()
-
     def before_request_headers(
         self,
         request_context,

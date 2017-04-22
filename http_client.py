@@ -38,7 +38,7 @@ class HttpClient(Pollable):
         self.request_context["state"] = state
         self._fd_dict = fd_dict
         self.request_context["application_context"] = application_context
-        self.service_class = service_base.ServiceBase()
+        self.service_class = service_base.ServiceBase(self.request_context)
         self.request_context["action"] = action
         self.request_context["block_num"] = block_num
         self.request_context["parent"] = parent
@@ -52,7 +52,7 @@ class HttpClient(Pollable):
         }
 
         try:
-            self.service_class = REGISTRY[action]()
+            self.service_class = REGISTRY[action](self.request_context)
         except KeyError:
             raise util.HTTPError(
                 code=500,
@@ -117,10 +117,10 @@ class HttpClient(Pollable):
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
             traceback.print_exc()
-            self.on_error
+            self.on_error()
             util.add_status(self, 500, e)
             self.request_context["response"] = e.message
-            self.service_class = service_base.ServiceBase()
+            self.service_class = service_base.ServiceBase(self.request_context)
 
         if call_again is None:
             call_again = True
@@ -148,7 +148,7 @@ class HttpClient(Pollable):
     def on_close(
         self,
     ):
-        self.socket.close()
+        self.socket.shutdown(socket.SHUT_RD)
 
     def fileno(self):
         return self.socket.fileno()
@@ -180,11 +180,11 @@ class HttpClient(Pollable):
         self,
     ):
         if util.get_headers(self.request_context):
+            self.request_context["content_length"] = int(
+                self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
+            )
+            self.service_class.before_request_content(self.request_context)
             self._current_state = self._state_machine[self._current_state]["next"]
-        self.request_context["content_length"] = int(
-            self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
-        )
-        self.service_class.before_request_content(self.request_context)
 
     def _get_content(
         self,
@@ -215,7 +215,7 @@ class HttpClient(Pollable):
         self.service_class.before_response_headers(self.request_context)
         if util.send_headers(self.request_context):
             self._current_state = self._state_machine[self._current_state]["next"]
-        self.service_class.before_response_content(self.request_context)
+            self.service_class.before_response_content(self.request_context)
 
     def _send_response(
         self,

@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import argparse
+import ConfigParser
 import logging
 import os
 import resource
@@ -124,12 +125,13 @@ def init_block_device(filename, filesize):
         os.lseek(sparse, filesize, 0)
         os.write(sparse, bytearray(constants.BLOCK_SIZE))
         os.lseek(sparse, 0, 0)
-        os.write(sparse, bytearray([1, 1])) # for bitmap and directory root
+        os.write(sparse, bytearray(chr(3))) # for bitmap and directory root
 
 
 def __main__():
+    # parse args
     args = parse_args()
-
+    logging.basicConfig(filename=args.log_file, level=logging.DEBUG)
     if args.block_device:
         init_block_device(
             args.sparse_file,
@@ -141,6 +143,10 @@ def __main__():
     if args.foreground:
         daemonize()
 
+    # parse config
+    Config = ConfigParser.ConfigParser()
+    Config.read(constants.CONFIG_NAME)
+
     objects = []
 
     def terminate(signum, frame):
@@ -149,8 +155,6 @@ def __main__():
 
     signal.signal(signal.SIGINT, terminate)
     signal.signal(signal.SIGTERM, terminate)
-
-    logging.basicConfig(filename=args.log_file, level=logging.DEBUG)
 
     poll_object = {
             "poll": event_object.PollEvents,
@@ -168,6 +172,7 @@ def __main__():
         "sparse": args.sparse_file,
         "block_device": args.block_device,
         "args": args,
+        "config": Config,
     }
 
     server = async_server.Server(

@@ -20,7 +20,7 @@ class HttpSocket(Pollable, Collable):
         state,
         application_context,
         fd_dict,
-        service_class=service_base.ServiceBase(),
+        service_class = service_base.ServiceBase()
     ):
         self.request_context = {
             "code": 200,
@@ -101,10 +101,10 @@ class HttpSocket(Pollable, Collable):
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
             traceback.print_exc()
-            self.on_error
+            self.on_error()
             util.add_status(self, 500, e)
             self.request_context["response"] = e.message
-            self.service_class = service_base.ServiceBase()
+            self.service_class = service_base.ServiceBase(self.request_context)
         if call_again is None:
             call_again = True
         return call_again
@@ -124,7 +124,7 @@ class HttpSocket(Pollable, Collable):
         except Exception as e:
             traceback.print_exc()
             self.on_error
-            self.service_class = service_base.ServiceBase()
+            self.service_class = service_base.ServiceBase(self.request_context)
 
     def on_error(
         self,
@@ -134,7 +134,8 @@ class HttpSocket(Pollable, Collable):
     def on_close(
         self,
     ):
-        self.socket.close()
+        self.socket.shutdown(socket.SHUT_WR)
+        pass
 
     def on_finish(
         self,
@@ -153,7 +154,7 @@ class HttpSocket(Pollable, Collable):
             self.on_error
             util.add_status(self, 500, e)
             self.request_context["response"] = e.message
-            self.service_class = service_base.ServiceBase()
+            self.service_class = service_base.ServiceBase(self.request_context)
         
 
     def fileno(self):
@@ -195,7 +196,7 @@ class HttpSocket(Pollable, Collable):
             service.name(): service for service in service_base.ServiceBase.__subclasses__()
         }
         try:
-            self.service_class = REGISTRY[self.request_context["parsed"].path]()
+            self.service_class = REGISTRY[self.request_context["parsed"].path](self.request_context)
         except KeyError:
             raise util.HTTPError(
                 code=500,
@@ -211,11 +212,13 @@ class HttpSocket(Pollable, Collable):
         self,
     ):
         if util.get_headers(self.request_context):
+            self.request_context["content_length"] = int(
+                self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
+            )
+            self.service_class.before_request_content(self.request_context)
             self._current_state = self._state_machine[self._current_state]["next"]
-        self.request_context["content_length"] = int(
-            self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
-        )
-        self.service_class.before_request_content(self.request_context)
+        else:
+            return False
 
     def _get_content(
         self,
@@ -289,3 +292,4 @@ class HttpSocket(Pollable, Collable):
         self.request_context["req_headers"] = {}
         self.request_context["response"] = ""
         self.request_context["headers"] = {}
+

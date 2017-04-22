@@ -47,7 +47,7 @@ class TCPListener(Pollable):
         self.request_context["state"] = constants.CLOSING
 
     def on_close(self):
-        self.fd.close()
+        self.fd.shutdown(socket.SHUT_RD)
 
     def fileno(self):
         return self.fd.fileno()

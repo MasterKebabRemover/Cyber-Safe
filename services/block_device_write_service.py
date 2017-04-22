@@ -12,11 +12,6 @@ class BlockDeviceWrite(ServiceBase):
     def name():
         return "/write"
 
-    def __init__(
-        self,
-    ):
-        super(BlockDeviceWrite, self).__init__()
-
     def before_request_content(
         self,
         request_context,
@@ -33,36 +28,29 @@ class BlockDeviceWrite(ServiceBase):
             raise HTTPError(500, "Content exceeds block size")
         else:
             request_context["block"] = block
-            request_context["fd"] = os.open(
-                request_context["application_context"]["sparse"],
-                os.O_WRONLY,
-            )
-            os.lseek(
-                request_context["fd"],
-                constants.BLOCK_SIZE*request_context["block"],
-                os.SEEK_SET,
-            )
+            self._data = ""
 
 
     def handle_content(
         self,
         request_context,
-    ):
+    ): # first construct data, then write all at once
         request_context["content_length"] -= len(request_context["recv_buffer"])
-        while request_context["recv_buffer"]:
-            request_context["recv_buffer"] = request_context["recv_buffer"][os.write(
-                request_context["fd"],
-                request_context["recv_buffer"],
-            ):]
+        self._data += request_context["recv_buffer"]
+        request_context["recv_buffer"] = ""
+
         if request_context["content_length"] > 0:
             return False
-        return None
 
-    def before_terminate(
-        self,
-        request_context,
-    ):
-        try:
-            os.close(request_context["fd"])
-        except OSError:
-            pass
+        with util.FDOpen(
+                request_context["application_context"]["sparse"],
+                os.O_WRONLY,
+            ) as fd:
+                os.lseek(
+                    fd,
+                    constants.BLOCK_SIZE*request_context["block"],
+                    os.SEEK_SET,
+                )
+                while self._data:
+                    self._data = self._data[os.write(fd, self._data):]
+        return None

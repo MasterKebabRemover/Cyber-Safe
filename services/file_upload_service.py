@@ -9,6 +9,7 @@ import struct
 import constants
 import util
 from util import HTTPError
+import integration_util
 from service_base import ServiceBase
 from http_client import HttpClient
 
@@ -19,6 +20,7 @@ class FileUploadService(ServiceBase):
 
     def __init__(
         self,
+        request_context,
     ):
         super(FileUploadService, self).__init__()
         [
@@ -137,11 +139,18 @@ class FileUploadService(ServiceBase):
         # check that no files exist with same name
         # find place in bitmap for main block of new file:
         index = 0
-        while index < len(self._bitmap):
-            if self._bitmap[index] == 1:
+        while index < len(self._bitmap*8):
+            if integration_util.bitmap_get_bit(
+                self._bitmap,
+                index,
+            ) == 1:
                 index +=1
                 continue
-            self._bitmap[index] = chr(1)
+            self._bitmap = integration_util.bitmap_set_bit(
+                self._bitmap,
+                index,
+                1,
+            )
             break
         else:
             raise HTTPError(500, "Internal Error", "no room in disk")
@@ -214,6 +223,8 @@ class FileUploadService(ServiceBase):
             # reached end of dir_block, write it and get new one
             if self._main_index >= constants.BLOCK_SIZE:
                 raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
+            # save block to write for future
+            request_context["future_block"] = request_context["block"]
             next_bitmap_index = self._next_bitmap_index()
             self._main_block[self._main_index: self._main_index + 4] = struct.pack(
                 ">I",
@@ -228,6 +239,9 @@ class FileUploadService(ServiceBase):
             )
             self._dir_block = bytearray(constants.BLOCK_SIZE)
             self._dir_index = 0
+            # get the data block back
+            request_context["block"] = request_context["future_block"]
+            request_context["future_block"] = ""
 
         request_context["file_size"] += constants.BLOCK_SIZE
 
@@ -281,20 +295,19 @@ class FileUploadService(ServiceBase):
             client_action=constants.WRITE, 
             client_block_num = self._main_block_num,
         )
-        if self._bitmap and self._root:
-            request_context["block"] = self._bitmap
-            util.init_client(
-                request_context,
-                client_action=constants.WRITE, 
-                client_block_num = 0,
-            )
-            request_context["block"] = self._root
-            util.init_client(
-                request_context,
-                client_action=constants.WRITE, 
-                client_block_num = 1,
-            )
-            request_context["response"] += "%s\r\n" % (request_context["filename"])
+        request_context["block"] = self._bitmap
+        util.init_client(
+            request_context,
+            client_action=constants.WRITE, 
+            client_block_num = 0,
+        )
+        request_context["block"] = self._root
+        util.init_client(
+            request_context,
+            client_action=constants.WRITE, 
+            client_block_num = 1,
+        )
+        request_context["response"] += "%s\r\n" % (request_context["filename"])
         request_context["recv_buffer"] = request_context["recv_buffer"][len(request_context["boundary"]):]
         request_context["content_length"] -= len(request_context["boundary"])
         self._current_state = self._state_machine[self._current_state]["next"]
@@ -350,11 +363,18 @@ class FileUploadService(ServiceBase):
         self,
     ):
         index = 0
-        while index < len(self._bitmap):
-            if self._bitmap[index] == 1:
+        while index < len(self._bitmap*8):
+            if integration_util.bitmap_get_bit(
+                self._bitmap,
+                index
+            ) == 1:
                 index +=1
                 continue
-            self._bitmap[index] = chr(1)
+            self._bitmap = integration_util.bitmap_set_bit(
+                self._bitmap,
+                index,
+                1
+            )
             break
         if index == len(self._bitmap):
             raise HTTPError(500, "Internal Error", "no room in disk")

@@ -12,11 +12,6 @@ class BlockDeviceRead(ServiceBase):
     def name():
         return "/read"
 
-    def __init__(
-        self,
-    ):
-        super(BlockDeviceRead, self).__init__()
-
     def before_response_status(
         self,
         request_context,
@@ -28,15 +23,6 @@ class BlockDeviceRead(ServiceBase):
             raise util.HTTPError(500, "Invalid block number")
         else:
             request_context["block"] = block
-            request_context["fd"] = os.open(
-                request_context["application_context"]["sparse"],
-                os.O_RDONLY,
-            )
-            os.lseek(
-                request_context["fd"],
-                constants.BLOCK_SIZE*request_context["block"],
-                os.SEEK_SET,
-            )
 
     def before_response_headers(
         self,
@@ -50,19 +36,19 @@ class BlockDeviceRead(ServiceBase):
     ):
         if request_context["block"] is not None:
             data = ""
-            while len(data) < constants.BLOCK_SIZE:
-                read_buffer = os.read(request_context["fd"], constants.BLOCK_SIZE - len(data))
-                if not read_buffer:
-                    break
-                data += read_buffer
+            with util.FDOpen(
+                request_context["application_context"]["sparse"],
+                os.O_RDONLY,
+            ) as fd:
+                os.lseek(
+                    fd,
+                    constants.BLOCK_SIZE*request_context["block"],
+                    os.SEEK_SET,
+                )
+                while len(data) < constants.BLOCK_SIZE:
+                    read_buffer = os.read(fd, constants.BLOCK_SIZE - len(data))
+                    if not read_buffer:
+                        break
+                    data += read_buffer
             request_context["block"] = None
             request_context["response"] = data
-
-    def before_terminate(
-        self,
-        request_context,
-    ):
-        try:
-            os.close(request_context["fd"])
-        except OSError:
-            pass

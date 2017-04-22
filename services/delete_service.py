@@ -10,6 +10,7 @@ import urlparse
 import constants
 import util
 from util import HTTPError
+import integration_util
 from service_base import ServiceBase
 from http_client import HttpClient
 
@@ -20,8 +21,8 @@ class DeleteService(ServiceBase):
 
     def __init__(
         self,
+        request_context=None,
     ):
-        super(DeleteService, self).__init__()
         self._bitmap = None
         self._root = None
 
@@ -74,7 +75,11 @@ class DeleteService(ServiceBase):
             raise util.HTTPError(500, "Internal Error", "file %s not found" % request_context["filename"])
 
         # delete entry, turn off directory block bit in bitmap and request directory block
-        self._bitmap[dir_num] = chr(0)
+        self._bitmap = integration_util.bitmap_set_bit(
+            self._bitmap,
+            dir_num,
+            0
+        )
         self._root[index: index + constants.ROOT_ENTRY_SIZE] = util.create_root_entry(
             {"clean_entry": True}
         )
@@ -98,7 +103,11 @@ class DeleteService(ServiceBase):
             block_num = struct.unpack(">I", self._main_block[index:index+4])[0]
             if block_num == 0:
                 break
-            self._bitmap[block_num] = chr(0)
+            self._bitmap = integration_util.bitmap_set_bit(
+                self._bitmap,
+                block_num,
+                0,
+            )
             # save in order to go over all dir blocks
             self._dir_block_list.append(block_num)
             index += 4
@@ -139,7 +148,11 @@ class DeleteService(ServiceBase):
             block_num = struct.unpack(">I", self._dir_block[index:index+4])[0]
             if block_num == 0:
                 break
-            self._bitmap[block_num] = chr(0)
+            self._bitmap = integration_util.bitmap_set_bit(
+                self._bitmap,
+                block_num,
+                0,
+            )
             index += 4
         self._delete_dir_blocks(request_context)
 

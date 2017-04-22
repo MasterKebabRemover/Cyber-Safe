@@ -42,11 +42,6 @@ class ListFiles(ServiceBase):
     def name():
         return "/list"
 
-    def __init__(
-        self,
-    ):
-        super(ListFiles, self).__init__()
-
     def before_request_content(
         self,
         request_context,

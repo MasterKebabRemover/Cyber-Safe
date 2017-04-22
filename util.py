@@ -35,7 +35,7 @@ class FDOpen(object):
         self,
         file,
         flags,
-        mode,
+        mode=None,
     ):
         self._file = file
         self._flags = flags
@@ -44,11 +44,17 @@ class FDOpen(object):
     def __enter__(self):
         self._fd = None
         self.fd = None
-        self._fd = self.fd = os.open(
-            self._file,
-            self._flags,
-            self._mode,
-        )
+        if self._mode:
+            self._fd = self.fd = os.open(
+                self._file,
+                self._flags,
+                self._mode,
+            )
+        else:
+            self._fd = self.fd = os.open(
+                self._file,
+                self._flags,
+            )
         return self.fd
 
     def __exit__(self, type, value, traceback):

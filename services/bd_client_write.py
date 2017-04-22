@@ -9,7 +9,7 @@ class BDClientWrite(ServiceBase):
     def name():
         return constants.WRITE
 
-    def before_response_status(
+    def __init__(
         self,
         request_context,
     ):
