@@ -177,7 +177,7 @@ class FileUploadService(ServiceBase):
         self._dir_block = bytearray(constants.BLOCK_SIZE)
         self._main_index = 0
         self._dir_index = 0
-        request_context["block"] = ""
+        request_context["buffer"] = ""
         request_context["file_size"] = 0
         self._current_state = self._state_machine[self._current_state]["next"]
 
@@ -185,32 +185,30 @@ class FileUploadService(ServiceBase):
         self,
         request_context,
     ):
-        if len(request_context["block"]) >= constants.BLOCK_SIZE:
-            temp = request_context["block"][constants.BLOCK_SIZE:]
-            request_context["block"] = request_context["block"][:constants.BLOCK_SIZE]
-            self._write_block(request_context)
-            request_context["block"] = temp
+        if len(request_context["buffer"]) >= constants.BLOCK_SIZE:
+            self._write_block(request_context, request_context["buffer"][:constants.BLOCK_SIZE])
+            request_context["buffer"] = request_context["buffer"][constants.BLOCK_SIZE:]
             return True
 
         index = request_context["recv_buffer"].find(request_context["boundary"])
         if index == 0:
-            old_length = len(request_context["block"])
-            request_context["block"] = util.ljust_00(request_context["block"], constants.BLOCK_SIZE)
-            request_context["file_size"] -= (len(request_context["block"]) - old_length)
-            self._write_block(request_context)
+            old_length = len(request_context["buffer"])
+            request_context["buffer"] = util.ljust_00(request_context["buffer"], constants.BLOCK_SIZE)
+            request_context["file_size"] -= (len(request_context["buffer"]) - old_length)
+            self._write_block(request_context, request_context["buffer"])
             self._current_state = self._state_machine[self._current_state]["next"]
             return True
 
         elif index == -1:
             data = request_context["recv_buffer"][:-len(request_context["boundary"])]
-            request_context["block"] += data
+            request_context["buffer"] += data
             request_context["content_length"] -= len(data)
             request_context["recv_buffer"] = request_context["recv_buffer"][-len(request_context["boundary"]):]
             return False
 
         else:
             data = request_context["recv_buffer"][:index]
-            request_context["block"] += data
+            request_context["buffer"] += data
             request_context["content_length"] -= len(data)
             request_context["recv_buffer"] = request_context["recv_buffer"][index:]
             return True
@@ -218,30 +216,29 @@ class FileUploadService(ServiceBase):
     def _write_block(
         self,
         request_context,
+        block,
     ):
+        logging.debug([block])
         if self._dir_index >= constants.BLOCK_SIZE:
             # reached end of dir_block, write it and get new one
             if self._main_index >= constants.BLOCK_SIZE:
                 raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
             # save block to write for future
-            request_context["future_block"] = request_context["block"]
             next_bitmap_index = self._next_bitmap_index()
             self._main_block[self._main_index: self._main_index + 4] = struct.pack(
                 ">I",
                 next_bitmap_index,
             )
             self._main_index += 4
-            request_context["block"] = self._dir_block
             util.init_client(
                 request_context,
                 client_action=constants.WRITE, 
                 client_block_num = next_bitmap_index,
+                block=self._dir_block,
             )
             self._dir_block = bytearray(constants.BLOCK_SIZE)
             self._dir_index = 0
             # get the data block back
-            request_context["block"] = request_context["future_block"]
-            request_context["future_block"] = ""
 
         request_context["file_size"] += constants.BLOCK_SIZE
 
@@ -258,6 +255,7 @@ class FileUploadService(ServiceBase):
             request_context,
             client_action=constants.WRITE, 
             client_block_num = next_bitmap_index,
+            block = block
         )
 
     def _update_disk(
@@ -277,35 +275,35 @@ class FileUploadService(ServiceBase):
         if self._main_index >= constants.BLOCK_SIZE:
             raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
         next_bitmap_index = self._next_bitmap_index()
-        request_context["block"] = self._dir_block
         request_context["state"] = constants.SLEEPING
         util.init_client(
             request_context,
             client_action=constants.WRITE, 
             client_block_num = next_bitmap_index,
+            block = self._dir_block
         )
         self._main_block[self._main_index: self._main_index + 4] = struct.pack(
             ">I",
             next_bitmap_index,
         )
 
-        request_context["block"] = self._main_block
         util.init_client(
             request_context,
             client_action=constants.WRITE, 
             client_block_num = self._main_block_num,
+            block = self._main_block
         )
-        request_context["block"] = self._bitmap
         util.init_client(
             request_context,
             client_action=constants.WRITE, 
             client_block_num = 0,
+            block = self._bitmap
         )
-        request_context["block"] = self._root
         util.init_client(
             request_context,
             client_action=constants.WRITE, 
             client_block_num = 1,
+            block = self._root
         )
         request_context["response"] += "%s\r\n" % (request_context["filename"])
         request_context["recv_buffer"] = request_context["recv_buffer"][len(request_context["boundary"]):]

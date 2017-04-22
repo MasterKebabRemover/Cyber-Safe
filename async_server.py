@@ -18,15 +18,11 @@ class Server(object):
 
     def __init__(
         self,
-        application_context,
+        app_context,
     ):
-        self._event_object = application_context["event_object"]
-        self._timeout = application_context["timeout"]
-        self._bind_address = application_context["bind_address"]
-        self._bind_port = application_context["bind_port"]
-        self._max_connections = application_context["max_connections"]
-        self._max_buffer_size = application_context["max_buffer_size"]
-        self._application_context = application_context
+        self._event_object = app_context["event_object"]
+        self._timeout = app_context["timeout"]
+        self._app_context = app_context
 
     def add_listener(
         self,
@@ -38,7 +34,7 @@ class Server(object):
             bind_address,
             bind_port,
             initiate,
-            application_context=self._application_context,
+            app_context=self._app_context,
             fd_dict=self._fd_dict,
         )
         self._fd_dict[listener.fileno()] = listener
@@ -59,7 +55,7 @@ class Server(object):
             client_entry = http_socket.HttpSocket(
                     client,
                     constants.READING,
-                    self._application_context,
+                    self._app_context,
                 )
             client.setblocking(0)
             logging.debug(
@@ -91,7 +87,7 @@ class Server(object):
                 entry.request_context["state"] == constants.LISTENER or
                 (
                     entry.request_context["state"] ==constants.ACTIVE and
-                    len(entry.request_context["recv_buffer"]) < self._max_buffer_size
+                    len(entry.request_context["recv_buffer"]) < constants.BLOCK_SIZE
                 )
             ):
                 mask |= select.POLLIN

@@ -18,11 +18,12 @@ class HttpClient(Pollable):
         self,
         socket,
         state,
-        application_context,
+        app_context,
         fd_dict,
         action, # must be constants.READ or constants.WRITE
         block_num,
         parent,
+        block=None
     ):
         self.request_context = {
             "code": None,
@@ -37,13 +38,12 @@ class HttpClient(Pollable):
         self.socket = socket
         self.request_context["state"] = state
         self._fd_dict = fd_dict
-        self.request_context["application_context"] = application_context
+        self.request_context["app_context"] = app_context
         self.service_class = service_base.ServiceBase(self.request_context)
         self.request_context["action"] = action
         self.request_context["block_num"] = block_num
         self.request_context["parent"] = parent
-        if action == constants.WRITE:
-            self.request_context["block"] = self.request_context["parent"].request_context["block"]
+        self.request_context["block"] = block
         for service in constants.MODULE_DICT["client"]:
             importlib.import_module("services.%s" % service)
 

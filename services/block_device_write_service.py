@@ -17,7 +17,7 @@ class BlockDeviceWrite(ServiceBase):
         request_context,
     ):
         super(BlockDeviceWrite, self).before_request_content(request_context)
-        sparse_size = os.stat(request_context["application_context"]["sparse"]).st_size
+        sparse_size = os.stat(request_context["app_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
         if block >= sparse_size / constants.BLOCK_SIZE:
@@ -43,7 +43,7 @@ class BlockDeviceWrite(ServiceBase):
             return False
 
         with util.FDOpen(
-                request_context["application_context"]["sparse"],
+                request_context["app_context"]["sparse"],
                 os.O_WRONLY,
             ) as fd:
                 os.lseek(

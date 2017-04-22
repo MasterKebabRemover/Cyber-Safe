@@ -31,17 +31,6 @@ def daemonize():
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--bind-address",
-        default="0.0.0.0",
-        help="Server bind address. Default: %(default)s",
-    )
-    parser.add_argument(
-        "--bind-port",
-        type=int,
-        default=8888,
-        help="Initial server bind port. Default: %(default)s",
-    )
-    parser.add_argument(
         "--max-connections",
         type=int,
         default=10,
@@ -78,38 +67,10 @@ def parse_args():
         default="select" if os.name == "nt" else "poll"
     )
     parser.add_argument(
-        "--max-buffer-size",
-        type=int,
-        default=1024*4,
-        help="max size of async_server read buffer. Default: %(default)s",
-    )
-    parser.add_argument(
-        "--sparse-file",
-        default="disk",
-        help="Name of sparse file",
-    )
-    parser.add_argument(
-        "--sparse-size",
-        type=int,
-        default=constants.BLOCK_SIZE*32768,
-        help="size of sparse file in MB"
-    )
-    parser.add_argument(
         "--block-device",
         action="store_true",
         default=False,
         help="whether this is a block device or frontend",
-    )
-    parser.add_argument(
-        "--block-device-address",
-        default="0.0.0.0",
-        help="address of block device servers",
-    )
-    parser.add_argument(
-        "--block-device-port",
-        type=int,
-        default=7777,
-        help="port of first block device server"
     )
 
     args = parser.parse_args()
@@ -132,20 +93,34 @@ def __main__():
     # parse args
     args = parse_args()
     logging.basicConfig(filename=args.log_file, level=logging.DEBUG)
+
+    Config = ConfigParser.ConfigParser()
+    Config.read(constants.CONFIG_NAME)
+
+    devices = None
     if args.block_device:
         init_block_device(
-            args.sparse_file,
-            args.sparse_size,
+            Config.get('blockdevice', 'file.name'),
+            Config.getint('blockdevice', 'file.size'),
         )
-        args.bind_address = args.block_device_address
-        args.bind_port = args.block_device_port
+        bind_address = Config.get('blockdevice', 'bind.address')
+        bind_port = Config.getint('blockdevice', 'bind.port')
+    else:
+        bind_address = Config.get('frontend', 'bind.address')
+        bind_port = Config.getint('frontend', 'bind.port')
+        devices = {
+            1: {
+                "address": Config.get('blockdevice.1', 'address'),
+                "port": Config.getint('blockdevice.1', 'port'),
+            },
+            2: {
+                "address": Config.get('blockdevice.2', 'address'),
+                "port": Config.getint('blockdevice.2', 'port'),
+            },
+        }
     
     if args.foreground:
         daemonize()
-
-    # parse config
-    Config = ConfigParser.ConfigParser()
-    Config.read(constants.CONFIG_NAME)
 
     objects = []
 
@@ -161,26 +136,24 @@ def __main__():
             "select": event_object.SelectEvents,
         }[args.event_method]
 
-    application_context = {
+    app_context = {
         "log": args.log_file,
         "event_object": poll_object,
-        "bind_address": args.bind_address,
-        "bind_port": args.bind_port,
+        "bind_address": bind_address,
+        "bind_port": bind_port,
         "timeout": args.timeout,
         "max_connections": args.max_connections,
-        "max_buffer_size": args.max_buffer_size,
-        "sparse": args.sparse_file,
+        "sparse": Config.get('blockdevice', 'file.name'),
         "block_device": args.block_device,
-        "args": args,
-        "config": Config,
+        "devices": devices,
     }
 
     server = async_server.Server(
-        application_context,
+        app_context,
     )
     server.add_listener(
-        args.bind_address,
-        args.bind_port,
+        bind_address,
+        bind_port,
         HttpSocket,
     )
 

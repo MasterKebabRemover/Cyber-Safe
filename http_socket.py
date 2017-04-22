@@ -18,7 +18,7 @@ class HttpSocket(Pollable, Collable):
         self,
         socket,
         state,
-        application_context,
+        app_context,
         fd_dict,
         service_class = service_base.ServiceBase()
     ):
@@ -36,10 +36,10 @@ class HttpSocket(Pollable, Collable):
         self.socket = socket
         self.request_context["state"] = state
         self.request_context["fd_dict"] = fd_dict
-        self.request_context["application_context"] = application_context
+        self.request_context["app_context"] = app_context
         self.request_context["callable"] = self
         self.service_class = service_class
-        for service in constants.MODULE_DICT[application_context["block_device"]]:
+        for service in constants.MODULE_DICT[app_context["block_device"]]:
             importlib.import_module("services.%s" % service)
 
         self._state_machine = self._get_state_machine()

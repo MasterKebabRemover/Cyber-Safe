@@ -162,17 +162,17 @@ class DeleteService(ServiceBase):
     ):
         request_context["state"] = constants.SLEEPING
         if self._bitmap and self._root:
-            request_context["block"] = self._bitmap
             util.init_client(
                 request_context,
                 client_action=constants.WRITE, 
                 client_block_num = 0,
+                block = self._bitmap
             )
-            request_context["block"] = self._root
             util.init_client(
                 request_context,
                 client_action=constants.WRITE, 
                 client_block_num = 1,
+                block = self._root
             )
 
     def before_response_headers(

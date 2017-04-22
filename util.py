@@ -98,7 +98,7 @@ def recv_line(
     if n == -1:
         return None, buffer
 
-    result = buffer[:n].decode("utf-8")
+    result = buffer[:n]
     buffer = buffer[n + len(constants.CRLF_BIN):]
     return result, buffer
 
@@ -131,11 +131,7 @@ def send_headers(
     return True
 
 def receive_buffer(entry):
-    free_buffer_size = entry.request_context[
-            "application_context"
-        ][
-            "max_buffer_size"
-        ] - len(
+    free_buffer_size = constants.BLOCK_SIZE - len(
             entry.request_context["recv_buffer"]
         )
     try:
@@ -165,22 +161,24 @@ def init_client(
     request_context,
     client_action,
     client_block_num,
+    block=None,
 ):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client = HttpClient(
         socket=s,
         state=constants.ACTIVE,
-        application_context=request_context["application_context"],
+        app_context=request_context["app_context"],
         fd_dict=request_context["fd_dict"],
         action=client_action, # must be constants.READ or constants.WRITE
         block_num=client_block_num, # this is directory root
         parent=request_context["callable"],
+        block=block,
     )
     try:
         s.connect(
             (
-                request_context["application_context"]["args"].block_device_address,
-                request_context["application_context"]["args"].block_device_port,
+                request_context["app_context"]["devices"][1]["address"],
+                request_context["app_context"]["devices"][1]["port"],
             )
         )
         s.setblocking(False)
