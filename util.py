@@ -68,7 +68,7 @@ class Disconnect(RuntimeError):
 def text_to_html(
     text,
 ):
-    return ("<HTML>\r\n<BODY>\r\n%s\r\n</BODY>\r\n</HTML>" % text).decode('utf-8')
+    return ("<HTML>\r\n<BODY>\r\n%s\r\n</BODY>\r\n</HTML>" % text)
 
 def random_cookie():
     result = ""
@@ -141,7 +141,6 @@ def receive_buffer(entry):
                 'Disconnected while recieving content'
             )
         entry.request_context["recv_buffer"] += t
-
     except socket.error, e:
         traceback.print_exc()
         if e.errno not in (errno.EAGAIN, errno.EWOULDBLOCK):
@@ -161,6 +160,7 @@ def init_client(
     request_context,
     client_action,
     client_block_num,
+    block_device_num,
     block=None,
 ):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -177,8 +177,8 @@ def init_client(
     try:
         s.connect(
             (
-                request_context["app_context"]["devices"][1]["address"],
-                request_context["app_context"]["devices"][1]["port"],
+                request_context["app_context"]["devices"][block_device_num]["address"],
+                request_context["app_context"]["devices"][block_device_num]["port"],
             )
         )
         s.setblocking(False)

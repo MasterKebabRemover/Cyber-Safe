@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import os
+import logging
 
 def encrypt_byte(byte): # return 2 random bytes that if xor'd would give the initial byte
     b1, b2 = 0, 0
@@ -17,13 +18,15 @@ def decrypt_byte(b1, b2): # xor's the 2 bytes but returns string instead of int
 def encrypt_data(s): # returns 2 random  byte arrays that if xor'd would give the initial byte array
     s1 = bytearray(0)
     s2 = bytearray(0)
+    s = bytearray(s)
     for b in s:
         b1, b2 = encrypt_byte(b)
         s1 += b1
         s2 += b2
-    return s1, s2
+    return [s1, s2]
 
 def decrypt_data(s1, s2): # xor's the 2 byte arrays and returns the original byte array
+    s1, s2 = bytearray(s1), bytearray(s2)
     if len(s1) != len(s2):
         raise RuntimeError("string lengths do not match")
     s = bytearray(0)
@@ -64,5 +67,5 @@ def bitmap_set_bit(bitmap, bit, value): # sets bit of bitmap to value
 
 
 # s = bytearray("this is working")
-# s1, s2 = encrypt_data(s)
+# [s1, s2] = encrypt_data(s)
 # print decrypt_data(s1, s2)

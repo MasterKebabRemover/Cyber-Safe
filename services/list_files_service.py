@@ -10,6 +10,7 @@ import util
 from util import HTTPError
 from service_base import ServiceBase
 from http_client import HttpClient
+import block_util
 
 FORM_HEAD = (
     "<h1>File List:</h1><form>" + 
@@ -46,12 +47,11 @@ class ListFiles(ServiceBase):
         self,
         request_context,
     ):
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_root
-        util.init_client(
+        block_util.bd_action(
             request_context=request_context,
-            client_action=constants.READ,
-            client_block_num=1,
+            block_num=1,
+            action=constants.READ,
+            service_wake_up=self._after_root,
         )
 
     def _after_root(

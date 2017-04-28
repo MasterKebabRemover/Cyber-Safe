@@ -41,16 +41,6 @@ class BDClientRead(ServiceBase):
         else:
             return bool(request_context["recv_buffer"])
 
-    # def before_response_status(
-        # self,
-        # request_context,
-    # ):
-        # cmd = "GET /%s?block=%d %s\r\n\r\n" % (
-            # "read",
-            # request_context["block_num"],
-            # constants.HTTP_SIGNATURE
-        # )
-        # request_context["send_buffer"] += cmd
 
     def before_response_headers(
         self,

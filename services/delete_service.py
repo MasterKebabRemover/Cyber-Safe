@@ -7,6 +7,7 @@ import socket
 import struct
 import urlparse
 
+import block_util
 import constants
 import util
 from util import HTTPError
@@ -34,12 +35,11 @@ class DeleteService(ServiceBase):
         if not qs.get("filename"):
             raise util.HTTPError(500, "Internal Error", "file name missing")
         request_context["filename"] = str(qs["filename"][0])
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_bitmap
-        util.init_client(
-            request_context,
-            client_action=constants.READ, 
-            client_block_num=0,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=0,
+            action=constants.READ,
+            service_wake_up=self._after_bitmap,
         )
 
     def _after_bitmap(
@@ -47,12 +47,11 @@ class DeleteService(ServiceBase):
         request_context,
     ):
         self._bitmap = bytearray(request_context["block"])
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_root
-        util.init_client(
-            request_context,
-            client_action=constants.READ, 
-            client_block_num=1,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=1,
+            action=constants.READ,
+            service_wake_up=self._after_root,
         )
 
     def _after_root(
@@ -83,12 +82,11 @@ class DeleteService(ServiceBase):
         self._root[index: index + constants.ROOT_ENTRY_SIZE] = util.create_root_entry(
             {"clean_entry": True}
         )
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_main_block
-        util.init_client(
-            request_context,
-            client_action=constants.READ, 
-            client_block_num=dir_num,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=dir_num,
+            action=constants.READ,
+            service_wake_up=self._after_main_block,
         )
 
     def _after_main_block(
@@ -121,13 +119,11 @@ class DeleteService(ServiceBase):
             self._update_disk(request_context)
         else:
             next_block = self._dir_block_list.pop()
-
-            request_context["state"] = constants.SLEEPING
-            request_context["wake_up_function"] = self._handle_dir_block
-            util.init_client(
-                request_context,
-                client_action=constants.READ, 
-                client_block_num=next_block,
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=next_block,
+                action=constants.READ,
+                service_wake_up=self._handle_dir_block,
             )
 
     def _handle_dir_block(
@@ -162,17 +158,17 @@ class DeleteService(ServiceBase):
     ):
         request_context["state"] = constants.SLEEPING
         if self._bitmap and self._root:
-            util.init_client(
-                request_context,
-                client_action=constants.WRITE, 
-                client_block_num = 0,
-                block = self._bitmap
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=0,
+                action=constants.WRITE,
+                block=self._bitmap,
             )
-            util.init_client(
-                request_context,
-                client_action=constants.WRITE, 
-                client_block_num = 1,
-                block = self._root
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=1,
+                action=constants.WRITE,
+                block=self._root,
             )
 
     def before_response_headers(

@@ -86,7 +86,6 @@ def init_block_device(filename, filesize):
         os.lseek(sparse, filesize, 0)
         os.write(sparse, bytearray(constants.BLOCK_SIZE))
         os.lseek(sparse, 0, 0)
-        os.write(sparse, bytearray(chr(3))) # for bitmap and directory root
 
 
 def __main__():

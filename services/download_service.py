@@ -11,6 +11,7 @@ import util
 from util import HTTPError
 from service_base import ServiceBase
 from http_client import HttpClient
+import block_util
 
 class Download(ServiceBase):
     @staticmethod
@@ -31,12 +32,11 @@ class Download(ServiceBase):
         if not qs.get("filename"):
             raise util.HTTPError(500, "Internal Error", "file name missing")
         request_context["file_name"] = str(qs["filename"][0])
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_root
-        util.init_client(
-            request_context,
-            client_action=constants.READ, 
-            client_block_num=1,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=1,
+            action=constants.READ,
+            service_wake_up=self._after_root,
         )
 
     def _after_root(
@@ -65,12 +65,11 @@ class Download(ServiceBase):
         # logging.debug(main_num)
         if main_num is None:
             raise HTTPError(500, "Internal Error", "File %s does not exist" % request_context["file_name"])
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._handle_main_block
-        util.init_client(
-            request_context,
-            client_action=constants.READ,
-            client_block_num=main_num,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=main_num,
+            action=constants.READ,
+            service_wake_up=self._handle_main_block,
         )
 
     def _handle_main_block(
@@ -121,12 +120,11 @@ class Download(ServiceBase):
         self._main_index += 4
         if current_block_num == 0:
             return None
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._handle_dir_block
-        util.init_client(
-            request_context,
-            client_action=constants.READ,
-            client_block_num=current_block_num,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=current_block_num,
+            action=constants.READ,
+            service_wake_up=self._handle_dir_block,
         )
         return current_block_num
 
@@ -150,13 +148,11 @@ class Download(ServiceBase):
                 if not self._next_dir_block(request_context):
                     return None
                 return constants.RETURN_AND_WAIT
-
-            request_context["state"] = constants.SLEEPING
-            request_context["wake_up_function"] = self._handle_block
-            util.init_client(
-                request_context,
-                client_action=constants.READ,
-                client_block_num=current_block_num,
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=current_block_num,
+                action=constants.READ,
+                service_wake_up=self._handle_block,
             )
             self._dir_index += 4
             return constants.RETURN_AND_WAIT

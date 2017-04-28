@@ -12,6 +12,7 @@ from util import HTTPError
 import integration_util
 from service_base import ServiceBase
 from http_client import HttpClient
+import block_util
 
 class FileUploadService(ServiceBase):
     @staticmethod
@@ -110,12 +111,11 @@ class FileUploadService(ServiceBase):
             raise HTTPError(500, "Internal Error", "filename missing") 
         if len(request_context["filename"]) > 60:
             raise HTTPError(500, "Internal Error", "filename %s too long" % request_context["file_name"])
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_bitmap
-        util.init_client(
-            request_context,
-            client_action=constants.READ, 
-            client_block_num=0,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=0,
+            action=constants.READ,
+            service_wake_up=self._after_bitmap,
         )
 
     def _after_bitmap(
@@ -123,12 +123,11 @@ class FileUploadService(ServiceBase):
         request_context,
     ):
         self._bitmap = bytearray(request_context["block"])
-        request_context["state"] = constants.SLEEPING
-        request_context["wake_up_function"] = self._after_root
-        util.init_client(
-            request_context,
-            client_action=constants.READ, 
-            client_block_num=1,
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=1,
+            action=constants.READ,
+            service_wake_up=self._after_root,
         )
 
     def _after_root(
@@ -218,7 +217,7 @@ class FileUploadService(ServiceBase):
         request_context,
         block,
     ):
-        logging.debug([block])
+        # logging.debug([block])
         if self._dir_index >= constants.BLOCK_SIZE:
             # reached end of dir_block, write it and get new one
             if self._main_index >= constants.BLOCK_SIZE:
@@ -230,10 +229,10 @@ class FileUploadService(ServiceBase):
                 next_bitmap_index,
             )
             self._main_index += 4
-            util.init_client(
-                request_context,
-                client_action=constants.WRITE, 
-                client_block_num = next_bitmap_index,
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=next_bitmap_index,
+                action=constants.WRITE,
                 block=self._dir_block,
             )
             self._dir_block = bytearray(constants.BLOCK_SIZE)
@@ -251,12 +250,13 @@ class FileUploadService(ServiceBase):
         self._dir_index += 4
         #write data to new block
         request_context["state"] = constants.SLEEPING
-        util.init_client(
-            request_context,
-            client_action=constants.WRITE, 
-            client_block_num = next_bitmap_index,
-            block = block
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=next_bitmap_index,
+            action=constants.WRITE,
+            block=block,
         )
+
 
     def _update_disk(
         self,
@@ -276,34 +276,33 @@ class FileUploadService(ServiceBase):
             raise HTTPError(500, "Internal Error", "File %s too large" % request_context["file_name"])
         next_bitmap_index = self._next_bitmap_index()
         request_context["state"] = constants.SLEEPING
-        util.init_client(
-            request_context,
-            client_action=constants.WRITE, 
-            client_block_num = next_bitmap_index,
-            block = self._dir_block
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=next_bitmap_index,
+            action=constants.WRITE,
+            block=self._dir_block,
         )
         self._main_block[self._main_index: self._main_index + 4] = struct.pack(
             ">I",
             next_bitmap_index,
         )
-
-        util.init_client(
-            request_context,
-            client_action=constants.WRITE, 
-            client_block_num = self._main_block_num,
-            block = self._main_block
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=self._main_block_num,
+            action=constants.WRITE,
+            block=self._main_block,
         )
-        util.init_client(
-            request_context,
-            client_action=constants.WRITE, 
-            client_block_num = 0,
-            block = self._bitmap
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=0,
+            action=constants.WRITE,
+            block=self._bitmap,
         )
-        util.init_client(
-            request_context,
-            client_action=constants.WRITE, 
-            client_block_num = 1,
-            block = self._root
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=1,
+            action=constants.WRITE,
+            block=self._root,
         )
         request_context["response"] += "%s\r\n" % (request_context["filename"])
         request_context["recv_buffer"] = request_context["recv_buffer"][len(request_context["boundary"]):]
@@ -360,7 +359,7 @@ class FileUploadService(ServiceBase):
     def _next_bitmap_index(
         self,
     ):
-        index = 0
+        index = 2
         while index < len(self._bitmap*8):
             if integration_util.bitmap_get_bit(
                 self._bitmap,
