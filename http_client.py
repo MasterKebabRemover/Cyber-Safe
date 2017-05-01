@@ -103,9 +103,12 @@ class HttpClient(Pollable):
             util.receive_buffer(self)
             # logging.debug(self.request_context["recv_buffer"])
         except Exception as e:
+            code = 500
+            if type(e) == util.HTTPError:
+                code = e.code
             traceback.print_exc()
             self.on_error()
-            util.add_status(self, 500, e)
+            util.add_status(self, code, e)
         self.on_idle()
 
     def on_idle(
@@ -116,9 +119,12 @@ class HttpClient(Pollable):
         try:
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
+            code = 500
+            if type(e) == util.HTTPError:
+                code = e.code
             traceback.print_exc()
             self.on_error()
-            util.add_status(self, 500, e)
+            util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)
 

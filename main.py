@@ -104,6 +104,8 @@ def __main__():
         )
         bind_address = Config.get('blockdevice', 'bind.address')
         bind_port = Config.getint('blockdevice', 'bind.port')
+        sparse = Config.get('blockdevice', 'file.name')
+        admin = None
     else:
         bind_address = Config.get('frontend', 'bind.address')
         bind_port = Config.getint('frontend', 'bind.port')
@@ -117,6 +119,8 @@ def __main__():
                 "port": Config.getint('blockdevice.2', 'port'),
             },
         }
+        sparse = None
+        admin = Config.get('frontend', 'admin.password')
     
     if args.foreground:
         daemonize()
@@ -142,9 +146,11 @@ def __main__():
         "bind_port": bind_port,
         "timeout": args.timeout,
         "max_connections": args.max_connections,
-        "sparse": Config.get('blockdevice', 'file.name'),
+        "sparse": sparse,
         "block_device": args.block_device,
         "devices": devices,
+        "config": Config,
+        "admin": admin
     }
 
     server = async_server.Server(

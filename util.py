@@ -13,6 +13,7 @@ from http_client import HttpClient
 
 STATUS_CODES = {
     200 : "OK",
+    307 : "Temporary Redirect",
     401 : "Unauthorized",
     404 : "File Not Found",
     500 : "Internal Error",
@@ -147,8 +148,18 @@ def receive_buffer(entry):
             raise
             
 def add_status(entry, code, extra):
-    entry.request_context["code"] = code
-    entry.request_context["status"] = STATUS_CODES[code]
+    if not entry.request_context.get("status_sent"):
+        entry.request_context["code"] = code
+        entry.request_context["status"] = STATUS_CODES.get(code, 500)
+    else:
+        entry.request_context["send_buffer"] += ((
+                "%s %s %s\r\n"
+            ) % (
+                constants.HTTP_SIGNATURE,
+                code,
+                STATUS_CODES[code],
+            )
+        ).encode("utf-8")
 
 def ljust_00(data, length):
     b = bytearray(data)

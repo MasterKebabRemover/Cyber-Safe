@@ -1,11 +1,17 @@
 #!/usr/bin/python
+import ConfigParser
+import hashlib
 import logging
 import os
+import struct
+
+import pyaes
 
 import constants
 import util
 import urlparse
 from service_base import ServiceBase
+import encryption_util
 
 class BlockDeviceWrite(ServiceBase):
     @staticmethod
@@ -28,7 +34,7 @@ class BlockDeviceWrite(ServiceBase):
             raise HTTPError(500, "Content exceeds block size")
         else:
             request_context["block"] = block
-            self._data = ""
+            self._data = bytearray(0)
 
 
     def handle_content(
@@ -41,6 +47,14 @@ class BlockDeviceWrite(ServiceBase):
 
         if request_context["content_length"] > 0:
             return False
+
+        # now encrypt data by block device keys
+        aes = encryption_util.get_aes(
+            key=request_context["app_context"]["config"].get('blockdevice', 'key'),
+            ivkey=request_context["app_context"]["config"].get('blockdevice', 'ivkey'),
+            block_num=request_context["block"],
+        )
+        self._data = encryption_util.encrypt_block_aes(aes, self._data)
 
         with util.FDOpen(
                 request_context["app_context"]["sparse"],

@@ -47,6 +47,7 @@ class ListFiles(ServiceBase):
         self,
         request_context,
     ):
+        self.get_authorization(request_context)
         block_util.bd_action(
             request_context=request_context,
             block_num=1,

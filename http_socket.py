@@ -88,9 +88,12 @@ class HttpSocket(Pollable, Collable):
             util.receive_buffer(self)
             # logging.debug(self.request_context["recv_buffer"])
         except Exception as e:
+            code = 500
+            if type(e) == util.HTTPError:
+                code = e.code
             traceback.print_exc()
             self.on_error()
-            util.add_status(self, 500, e)
+            util.add_status(self, code, e)
 
     def on_idle(
         self,
@@ -100,9 +103,12 @@ class HttpSocket(Pollable, Collable):
             # logging.debug("%d is at state %d" % (hash(self), self._current_state))
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
+            code = 500
+            if type(e) == util.HTTPError:
+                code = e.code
             traceback.print_exc()
-            self.on_error()
-            util.add_status(self, 500, e)
+            # self.on_error()
+            util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)
         if call_again is None:
@@ -150,9 +156,12 @@ class HttpSocket(Pollable, Collable):
             if wake_up_function:
                 wake_up_function(self.request_context)
         except Exception as e:
+            code = 500
+            if type(e) == util.HTTPError:
+                code = e.code
             traceback.print_exc()
             self.on_error
-            util.add_status(self, 500, e)
+            util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)
         
@@ -215,8 +224,8 @@ class HttpSocket(Pollable, Collable):
             self.request_context["content_length"] = int(
                 self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
             )
-            self.service_class.before_request_content(self.request_context)
             self._current_state = self._state_machine[self._current_state]["next"]
+            self.service_class.before_request_content(self.request_context)
         else:
             return False
 
@@ -247,6 +256,7 @@ class HttpSocket(Pollable, Collable):
                 self.request_context["status"],
             )
         ).encode("utf-8")
+        self.request_context["status_sent"] = True
         self.service_class.before_response_headers(self.request_context)
         self._current_state = self._state_machine[self._current_state]["next"]
 

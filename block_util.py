@@ -1,6 +1,7 @@
 import constants
 import util
 import integration_util
+import encryption_util
 import logging
 
 def bd_action(# should be called instead of read_block, write_block
@@ -43,8 +44,19 @@ def read_block(
             request_context["read_block"],
             request_context["block"],
         )
-        # if received all replies, wake up the service back
+        # if received all replies, decrypt wake up the service back
         if request_context.get("replies") == len(request_context["app_context"]["devices"]):
+            # decrypt data with aes frontend key
+            aes = encryption_util.get_aes(
+                key=request_context["app_context"]["config"].get('frontend', 'key'),
+                ivkey=request_context["app_context"]["config"].get('frontend', 'ivkey'),
+                block_num=request_context["block_num"],
+            )
+            request_context["read_block"] = encryption_util.decrypt_block_aes(
+                aes,
+                request_context["read_block"],
+            )
+            # pass data to service
             request_context["block"] = request_context["read_block"]
             request_context["read_block"] = None
             request_context["service_wake_up"](request_context)
@@ -56,12 +68,21 @@ def write_block(
     request_context,
     block,
 ):
-    encrypted = integration_util.encrypt_data(block)
+    # encrypt using aes and frontend keys
+    aes = encryption_util.get_aes(
+        key=request_context["app_context"]["config"].get('frontend', 'key'),
+        ivkey=request_context["app_context"]["config"].get('frontend', 'ivkey'),
+        block_num=request_context["block_num"],
+    )
+    block = encryption_util.encrypt_block_aes(aes, block)
+    # encrypt using byte split method
+    block = integration_util.encrypt_data(block)
+    # send data to all block devices
     for i in range(len(request_context["app_context"]["devices"])):
         util.init_client(
             request_context=request_context,
             client_action=constants.WRITE,
             client_block_num=request_context["block_num"],
-            block=encrypted[i],
+            block=block[i],
             block_device_num=request_context["app_context"]["devices"].keys()[i],
         )

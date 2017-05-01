@@ -156,7 +156,6 @@ class DeleteService(ServiceBase):
         self,
         request_context,
     ):
-        request_context["state"] = constants.SLEEPING
         if self._bitmap and self._root:
             block_util.bd_action(
                 request_context=request_context,

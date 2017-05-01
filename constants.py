@@ -46,6 +46,7 @@ MODULE_DICT = {
     ],
     0: [
         "clock_service",
+        "get_file_service",
         "counter_service",
         "download_service",
         "file_upload_service",
@@ -55,6 +56,7 @@ MODULE_DICT = {
         "secret_service2",
         "list_files_service",
         "delete_service",
+        "init_service",
     ],
     "client": [
         "bd_client_read",
@@ -70,7 +72,7 @@ MAX_NUMBER_OF_HEADERS = 100
 Cookie = "Cookie"
 BASE = "./files"
 INTERNAL_ERROR = "Internal Error"
-BLOCK_SIZE = 1024*4
+BLOCK_SIZE = 4096 # must be a multiple of 16 for AES
 CONTENT_TYPE = "Content-Type"
 CONTENT_LENGTH = "Content-Length"
 AUTHORIZATION = "Authorization"

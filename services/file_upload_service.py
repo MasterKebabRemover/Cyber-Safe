@@ -137,23 +137,7 @@ class FileUploadService(ServiceBase):
         self._root = bytearray(request_context["block"])
         # check that no files exist with same name
         # find place in bitmap for main block of new file:
-        index = 0
-        while index < len(self._bitmap*8):
-            if integration_util.bitmap_get_bit(
-                self._bitmap,
-                index,
-            ) == 1:
-                index +=1
-                continue
-            self._bitmap = integration_util.bitmap_set_bit(
-                self._bitmap,
-                index,
-                1,
-            )
-            break
-        else:
-            raise HTTPError(500, "Internal Error", "no room in disk")
-        self._main_block_num = index
+        self._main_block_num = self._next_bitmap_index()
 
         # create entry for new file in dir root
         index = 0

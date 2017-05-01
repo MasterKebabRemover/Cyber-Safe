@@ -34,8 +34,11 @@ def decrypt_data(s1, s2): # xor's the 2 byte arrays and returns the original byt
         s += decrypt_byte(s1[i], s2[i])
     return s
 
-def xor_bytes(b1, b2): #xor's 2 bytes, receives and returns strings
-    return bytearray([bytearray(b1)[0] ^ bytearray(b2)[0]])
+def xor_strings(b1, b2): #xor's 2 strings
+    result = bytearray(0)
+    for i in range(len(b1)):
+        result += bytearray([bytearray(b1)[i] ^ bytearray(b2)[i]])
+    return result
 
 def get_bit(bit, byte): # get bit from byte
     if bit > 7:
