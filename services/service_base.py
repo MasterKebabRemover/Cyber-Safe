@@ -1,7 +1,10 @@
 #!/usr/bin/python
+import Cookie
 import logging
 import urlparse
+import os
 
+from encryption_util import sha
 import constants
 import util
 
@@ -83,17 +86,18 @@ class ServiceBase(object):
         authorization = None
         qs = urlparse.parse_qs(request_context["parsed"].query)
         authorization = qs.get('password', [None, None])[0]
-
-        got_from_cookie = False
-        if authorization is None:
-            authorization = util.parse_cookies(request_context["req_headers"].get(constants.Cookie), "password")
-            got_from_cookie = True
+        if authorization:
+            c = Cookie.SimpleCookie()
+            c["random"] = os.urandom(16)
+            header = c.output().split(":")
+            request_context["headers"][header[0]] = header[1]
+            request_context["app_context"]["password_dict"][c["random"].value] = authorization
+        else:
+            random = util.parse_cookies(request_context["req_headers"].get(constants.Cookie), "random")
+            authorization = request_context["app_context"]["password_dict"].get(random)
 
         if authorization:
             request_context["authorization"] = authorization
-            if not got_from_cookie:
-                cookies_to_set = "password=%s" % (authorization)
-                request_context["headers"]["Set-Cookie"] = cookies_to_set
             return authorization
         else:
             request_context["headers"]["Location"] = "http://%s:%d/" % (

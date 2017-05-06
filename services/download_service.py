@@ -1,14 +1,19 @@
 #!/usr/bin/python
 import errno
+import hashlib
 import os
 import socket
 import struct
 import logging
 import urlparse
 
+import pyaes
+
 import constants
 import util
+import encryption_util
 from util import HTTPError
+from root_entry import RootEntry
 from service_base import ServiceBase
 from http_client import HttpClient
 import block_util
@@ -18,10 +23,11 @@ class Download(ServiceBase):
     def name():
         return "/download"
 
-    def before_request_headers(
+    def before_request_content(
         self,
         request_context,
     ):
+        self._authorization = self.get_authorization(request_context)
         self._before_root(request_context)
 
     def _before_root(
@@ -30,7 +36,8 @@ class Download(ServiceBase):
     ):
         qs = urlparse.parse_qs(request_context["parsed"].query)
         if not qs.get("filename"):
-            raise util.HTTPError(500, "Internal Error", "file name missing")
+            request_context["headers"][constants.CONTENT_TYPE] = "text/html"
+            raise util.HTTPError(500, "Internal Error", "file name missing" + constants.BACK_TO_LIST)
         request_context["file_name"] = str(qs["filename"][0])
         block_util.bd_action(
             request_context=request_context,
@@ -47,22 +54,26 @@ class Download(ServiceBase):
         index = 0
         main_num = None
         while index < constants.BLOCK_SIZE:
-            entry = util.parse_root_entry(directory_root[
-                index: index + constants.ROOT_ENTRY_SIZE
-            ])
-            if entry["name"] == "":
-                index += constants.ROOT_ENTRY_SIZE
+            # check if entry is the file
+            entry = RootEntry()
+            entry.load_entry(
+                directory_root[
+                    index: index + constants.ROOT_ENTRY_SIZE
+                ],
+            )
+            index += constants.ROOT_ENTRY_SIZE
+            if entry.is_empty():
                 continue
-            if (
-                entry["name"] != request_context["file_name"]
+            if entry.compare_sha(
+                user_key=encryption_util.sha(self._authorization)[:16],
+                file_name=request_context["file_name"]
             ):
-                index += constants.ROOT_ENTRY_SIZE
-            else:
-                main_num = entry["main_block"]
-                request_context["headers"][constants.CONTENT_LENGTH] = entry["size"]
+                main_num = entry.main_block_num
+                encrypted = entry.get_encrypted(
+                    user_key=encryption_util.sha(self._authorization)[:16],
+                )
+                request_context["headers"][constants.CONTENT_LENGTH] = encrypted["file_size"]
                 break
-        # logging.debug(current_name)
-        # logging.debug(main_num)
         if main_num is None:
             raise HTTPError(500, "Internal Error", "File %s does not exist" % request_context["file_name"])
         block_util.bd_action(
@@ -92,7 +103,18 @@ class Download(ServiceBase):
         self,
         request_context,
     ):
+        # decrypt block using user key
+        iv = request_context["block"][:16]
+        request_context["block"] = request_context["block"][16:]
+        key = encryption_util.sha(self._authorization)[:16]
+        aes = pyaes.AESModeOfOperationCBC(key, iv=str(iv))
+        request_context["block"] = encryption_util.decrypt_block_aes(
+            block=request_context["block"],
+            aes=aes,
+        )
+        # send block to user
         request_context["response"] = request_context["block"]
+        request_context["block"] = ""
 
     def before_response_headers(
         self,

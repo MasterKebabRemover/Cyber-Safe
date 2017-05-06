@@ -2,13 +2,14 @@ import constants
 import hashlib
 import struct
 import logging
+import hmac
 
 import pyaes
 
 def get_aes( # creates an aes object with iv that matches block_num
     key,
     ivkey,
-    block_num,
+    block_num=None,
 ):
     # hash key and ivkey to match aes length
     sha = hashlib.sha1()
@@ -27,9 +28,7 @@ def encrypt_block_aes(
     block,
 ):
     index = 0
-    if len(block) != constants.BLOCK_SIZE:
-        raise RuntimeError('encryption data length must be block size')
-    result = bytearray(constants.BLOCK_SIZE)
+    result = bytearray(len(block))
     while index < len(block):
         result[index:index+16] = struct.pack(
             "16s",
@@ -48,9 +47,7 @@ def decrypt_block_aes(
     block,
 ):
     index = 0
-    if len(block) != constants.BLOCK_SIZE:
-        raise RuntimeError('encryption data length must be block size')
-    result = bytearray(constants.BLOCK_SIZE)
+    result = bytearray(len(block))
     while index < len(block):
         result[index:index+16] = struct.pack(
             "16s",
@@ -62,4 +59,32 @@ def decrypt_block_aes(
             )
         )
         index += 16
+    return result
+
+def sha(data, *more_data):
+    h = hmac.new(data, digestmod=hashlib.sha1)
+    for i in more_data:
+        h.update(i)
+    return h.digest()
+
+def aes_encrypt(
+    key,
+    iv,
+    data,
+):
+    aes = pyaes.Encrypter(pyaes.AESModeOfOperationCBC(key, iv))
+    result = ""
+    result += aes.feed(data)
+    result += aes.feed()
+    return result
+
+def aes_decrypt(
+    key,
+    iv,
+    data,
+):
+    aes = pyaes.Decrypter(pyaes.AESModeOfOperationCBC(key, iv))
+    result = ""
+    result += aes.feed(data)
+    result += aes.feed()
     return result

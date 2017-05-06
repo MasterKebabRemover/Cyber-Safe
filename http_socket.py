@@ -204,18 +204,13 @@ class HttpSocket(Pollable, Collable):
         REGISTRY = {
             service.name(): service for service in service_base.ServiceBase.__subclasses__()
         }
-        try:
-            self.service_class = REGISTRY[self.request_context["parsed"].path](self.request_context)
-        except KeyError:
-            raise util.HTTPError(
-                code=500,
-                status="Internal Error",
-                message="service \"%s\" not supported" % self.request_context["parsed"].path,
-            )
-        finally:
-            self._current_state = self._state_machine[self._current_state]["next"]
-            self.service_class.before_request_headers(self.request_context)
-            self.request_context["req_headers"] = self.service_class.get_header_dict()
+        self.service_class = REGISTRY.get(
+            self.request_context["parsed"].path,
+            REGISTRY.get("*"),
+        )(self.request_context)
+        self._current_state = self._state_machine[self._current_state]["next"]
+        self.service_class.before_request_headers(self.request_context)
+        self.request_context["req_headers"] = self.service_class.get_header_dict()
 
     def _get_headers(
         self,
@@ -273,7 +268,7 @@ class HttpSocket(Pollable, Collable):
         service_command = self.service_class.response(self.request_context)
         if self.request_context["response"]:
             self.request_context["send_buffer"] += self.request_context["response"]
-            self.request_context["response"] = None
+            self.request_context["response"] = ""
         if service_command is None:
             service_command = constants.MOVE_TO_NEXT_STATE
 

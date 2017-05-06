@@ -1,15 +1,20 @@
 #!/usr/bin/python
 import errno
+import hashlib
 import os
 import tempfile
 import logging
 import socket
 import struct
 
+import pyaes
+
 import constants
 import util
 from util import HTTPError
 import integration_util
+import encryption_util
+from root_entry import RootEntry
 from service_base import ServiceBase
 from http_client import HttpClient
 import block_util
@@ -56,6 +61,7 @@ class FileUploadService(ServiceBase):
         self,
         request_context,
     ):
+        self._authorization = self.get_authorization(request_context)
         super(FileUploadService, self).before_request_content(request_context)
         if request_context["req_headers"][constants.CONTENT_TYPE] is None:
             raise HTTPError(500, "Internal Error", "missing boundary header")
@@ -102,14 +108,15 @@ class FileUploadService(ServiceBase):
         request_context,
     ):
         cd = request_context["req_headers"]["Content-Disposition"].split("; ")
-        request_context["filename"] = None
+        request_context["file_name"] = None
         request_context["fd"] = None
         for field in cd:
             if len(field.split("filename=")) == 2:
-                request_context["filename"] = field.split("filename=")[1].strip("\"")
-        if not request_context["filename"]:
-            raise HTTPError(500, "Internal Error", "filename missing") 
-        if len(request_context["filename"]) > 60:
+                request_context["file_name"] = field.split("filename=")[1].strip("\"")
+        if not request_context["file_name"]:
+            request_context["headers"][constants.CONTENT_TYPE] = "text/html"
+            raise HTTPError(500, "Internal Error", "file name missing" + constants.BACK_TO_LIST) 
+        if len(request_context["file_name"]) > 60:
             raise HTTPError(500, "Internal Error", "filename %s too long" % request_context["file_name"])
         block_util.bd_action(
             request_context=request_context,
@@ -143,15 +150,18 @@ class FileUploadService(ServiceBase):
         index = 0
         created = False
         while index < len(self._root):
-            entry = util.parse_root_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
-            if entry["name"] != "":
-                if entry["name"] == bytearray(request_context["filename"], 'utf-8'):
-                    raise HTTPError(500, "Internal Error", "File %s already exists" % request_context["filename"])
-            elif not created:
+            entry = RootEntry()
+            entry.load_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
+            if entry.is_empty():
                 created = True
                 # save parameters to later create entry
                 request_context["main_block_num"] = self._main_block_num
                 request_context["dir_root_index"] = index
+            elif entry.compare_sha(
+                user_key = encryption_util.sha(self._authorization)[:16],
+                file_name = request_context["file_name"]
+            ):
+                raise HTTPError(500, "Internal Error", "File %s already exists" % request_context["file_name"])
             index += constants.ROOT_ENTRY_SIZE
         if not created:
             raise HTTPError(500, "Internal Error", "no room in disk")
@@ -168,15 +178,15 @@ class FileUploadService(ServiceBase):
         self,
         request_context,
     ):
-        if len(request_context["buffer"]) >= constants.BLOCK_SIZE:
-            self._write_block(request_context, request_context["buffer"][:constants.BLOCK_SIZE])
-            request_context["buffer"] = request_context["buffer"][constants.BLOCK_SIZE:]
+        if len(request_context["buffer"]) >= constants.BLOCK_SIZE - constants.IV_LENGTH: # iv length
+            self._write_block(request_context, request_context["buffer"][:constants.BLOCK_SIZE - constants.IV_LENGTH])
+            request_context["buffer"] = request_context["buffer"][constants.BLOCK_SIZE - constants.IV_LENGTH:]
             return True
 
         index = request_context["recv_buffer"].find(request_context["boundary"])
         if index == 0:
             old_length = len(request_context["buffer"])
-            request_context["buffer"] = util.ljust_00(request_context["buffer"], constants.BLOCK_SIZE)
+            request_context["buffer"] = util.ljust_00(request_context["buffer"], constants.BLOCK_SIZE - constants.IV_LENGTH)
             request_context["file_size"] -= (len(request_context["buffer"]) - old_length)
             self._write_block(request_context, request_context["buffer"])
             self._current_state = self._state_machine[self._current_state]["next"]
@@ -201,7 +211,6 @@ class FileUploadService(ServiceBase):
         request_context,
         block,
     ):
-        # logging.debug([block])
         if self._dir_index >= constants.BLOCK_SIZE:
             # reached end of dir_block, write it and get new one
             if self._main_index >= constants.BLOCK_SIZE:
@@ -223,7 +232,7 @@ class FileUploadService(ServiceBase):
             self._dir_index = 0
             # get the data block back
 
-        request_context["file_size"] += constants.BLOCK_SIZE
+        request_context["file_size"] += len(block)
 
         next_bitmap_index = self._next_bitmap_index()
         #also mark new block in dir block
@@ -232,7 +241,15 @@ class FileUploadService(ServiceBase):
             next_bitmap_index,
         )
         self._dir_index += 4
-        #write data to new block
+        # encrypt data with user key and random iv. store iv in beginning of data. iv is 16 bytes.
+        iv = os.urandom(16)
+        key = encryption_util.sha(self._authorization)[:16]
+        aes = pyaes.AESModeOfOperationCBC(key, iv=iv)
+        block = iv + encryption_util.encrypt_block_aes(
+            block=block,
+            aes=aes,
+        )
+        # write data to new block
         request_context["state"] = constants.SLEEPING
         block_util.bd_action(
             request_context=request_context,
@@ -247,13 +264,23 @@ class FileUploadService(ServiceBase):
         request_context,
     ):
         # create root entry for file using data saved and calculated
-        new_entry = util.create_root_entry({
-            "name": request_context["filename"],
-            "size": request_context["file_size"],
-            "main_block": request_context["main_block_num"],
-        })
+        new_entry = RootEntry()
+        new_entry.iv_size = 16
+        new_entry.iv = os.urandom(16)
+        new_entry.set_encrypted(
+            user_key=encryption_util.sha(self._authorization)[:16],
+            file_size=request_context["file_size"],
+            file_name=request_context["file_name"],
+        )
+        new_entry.main_block_num = request_context["main_block_num"]
+        new_entry.random = os.urandom(4)
+        new_entry.sha = encryption_util.sha(
+            new_entry.random,
+            encryption_util.sha(self._authorization)[:16], # user key
+            request_context["file_name"],
+        )[:16]
         index = request_context["dir_root_index"]
-        self._root[index: index + constants.ROOT_ENTRY_SIZE] = new_entry
+        self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(new_entry)
 
         # write last dir block and mark it in main block
         if self._main_index >= constants.BLOCK_SIZE:
@@ -288,7 +315,7 @@ class FileUploadService(ServiceBase):
             action=constants.WRITE,
             block=self._root,
         )
-        request_context["response"] += "%s\r\n" % (request_context["filename"])
+        request_context["response"] += "%s\r\n" % (request_context["file_name"])
         request_context["recv_buffer"] = request_context["recv_buffer"][len(request_context["boundary"]):]
         request_context["content_length"] -= len(request_context["boundary"])
         self._current_state = self._state_machine[self._current_state]["next"]
@@ -337,6 +364,7 @@ class FileUploadService(ServiceBase):
             {
                 constants.CONTENT_LENGTH:0,
                 constants.CONTENT_TYPE:None,
+                constants.Cookie: None,
             }
         )
 

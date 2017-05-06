@@ -1,0 +1,84 @@
+div {
+    border-radius: 5px;
+    padding: 20px;
+    background-repeat: no-repeat;
+    background-position: right;
+}
+
+table {
+    border-collapse: collapse;
+    border-style: solid;
+    width: 100%;
+    text-align: center;
+    font-size: 150%;
+}
+
+th {
+    background-color: #4CAF50;
+    color: white;
+    font-size: 150%;
+}
+
+tr {
+    color: black;
+}
+
+tr, th {
+    border-bottom: 1px solid #ddd;
+}
+
+tr:hover {
+    background-color:#f5f5f5;
+}
+
+
+input[type=submit] {
+    width: 30%;
+    background-color: #999999;
+    color: white;
+    padding: 14px 20px;
+    border: outset;
+    border-radius: 400px;
+    cursor: pointer;
+    text-align:center;
+    font-size: 36px;
+    margin-left: 35%;
+}
+
+input[type=submit]:hover {
+    width: 30%;
+    background-color: #c0c0c0;
+    color: white;
+    padding: 14px 20px;
+    border: outset;
+    border-radius: 400px;
+    cursor: pointer;
+    text-align:center;
+    font-size: 36px;
+    margin-left: 35%;
+}
+
+.inputfile {
+	width: 0.1px;
+	height: 0.1px;
+	opacity: 0;
+	overflow: hidden;
+	position: absolute;
+	z-index: -1;
+}
+
+.inputfile + label {
+    background-color: #999999;
+    color: white;
+    padding: 14px 20px;
+    border: outset;
+    border-radius: 400px;
+    cursor: pointer;
+    text-align:center;
+    font-size: 36px;
+}
+
+.inputfile:focus + label,
+.inputfile + label:hover {
+    background-color: #c0c0c0;
+}

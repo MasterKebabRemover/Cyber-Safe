@@ -150,7 +150,9 @@ def __main__():
         "block_device": args.block_device,
         "devices": devices,
         "config": Config,
-        "admin": admin
+        "admin": admin,
+        "base": args.base,
+        "password_dict":{}
     }
 
     server = async_server.Server(

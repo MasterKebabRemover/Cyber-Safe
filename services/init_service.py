@@ -27,7 +27,8 @@ class InitService(ServiceBase):
     ):
         authorization = self.get_authorization(request_context)
         if authorization != request_context["app_context"]["admin"]:
-            raise util.HTTPError(500, "Internal Error", "Admin password required to init disk")
+            request_context["headers"][constants.CONTENT_TYPE] = "text/html"
+            raise util.HTTPError(500, "Internal Error", "Admin password required to init disk" + constants.BACK_TO_MENU)
         else:
             block_util.bd_action(
                 request_context=request_context,
@@ -48,7 +49,7 @@ class InitService(ServiceBase):
     ):
 
         request_context["response"] = "disk initialized successfuly"
-        request_context["response"] += constants.BACK_TO_LIST
+        request_context["response"] += constants.BACK_TO_MENU
         request_context["response"] = util.text_to_html(request_context["response"])
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(InitService, self).before_response_headers(request_context)

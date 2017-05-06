@@ -9,7 +9,9 @@ import urlparse
 
 import block_util
 import constants
+import encryption_util
 import util
+from root_entry import RootEntry
 from util import HTTPError
 import integration_util
 from service_base import ServiceBase
@@ -31,9 +33,11 @@ class DeleteService(ServiceBase):
         self,
         request_context,
     ):
+        self._authorization = self.get_authorization(request_context)
         qs = urlparse.parse_qs(request_context["parsed"].query)
         if not qs.get("filename"):
-            raise util.HTTPError(500, "Internal Error", "file name missing")
+            request_context["headers"][constants.CONTENT_TYPE] = "text/html"
+            raise util.HTTPError(500, "Internal Error", "file name missing" + constants.BACK_TO_LIST)
         request_context["filename"] = str(qs["filename"][0])
         block_util.bd_action(
             request_context=request_context,
@@ -65,9 +69,15 @@ class DeleteService(ServiceBase):
         index = 0
         dir_num = None
         while index < len(self._root):
-            entry = util.parse_root_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
-            if entry["name"] == request_context["filename"]:
-                dir_num = entry["main_block"]
+            entry = RootEntry()
+            entry.load_entry(
+                self._root[index: index + constants.ROOT_ENTRY_SIZE]
+            )
+            if entry.compare_sha(
+                user_key=encryption_util.sha(self._authorization)[:16],
+                file_name=request_context["filename"]
+            ):
+                dir_num = entry.main_block_num
                 break
             index += constants.ROOT_ENTRY_SIZE
         if dir_num is None:
@@ -79,9 +89,7 @@ class DeleteService(ServiceBase):
             dir_num,
             0
         )
-        self._root[index: index + constants.ROOT_ENTRY_SIZE] = util.create_root_entry(
-            {"clean_entry": True}
-        )
+        self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(RootEntry())
         block_util.bd_action(
             request_context=request_context,
             block_num=dir_num,
