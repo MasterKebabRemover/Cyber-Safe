@@ -6,9 +6,11 @@ import struct
 INDICES = {
     "iv_size": 0,
     "iv": 1,
-    "file_size": 33, #
-    "file_name_length": 37, #
-    "file_name": 38, # will be padded to 180 bytes with random, then encrypted to get 196 byte output
+    "file_size": 33,
+    "file_name_length": 37,
+    # will be padded to 180 bytes with random, then encrypted to get 196 byte
+    # output
+    "file_name": 38,
     "main_block_num": 225,
     "blank": 229,
     "random": 236,
@@ -16,27 +18,30 @@ INDICES = {
     "end": 256,
 }
 
-class RootEntry(object): # class to cleanly handle root entry operations
+
+class RootEntry(object):  # class to cleanly handle root entry operations
     def __init__(self):
         self._entry = bytearray(INDICES["end"])
 
     def __str__(self):
         return str(self._entry)
 
-    def is_empty(self): # compare self to empty entry
+    def is_empty(self):  # compare self to empty entry
         return str(self) == str(RootEntry())
 
-    def load_entry(self, entry): # load an entry of <end> bytes
+    def load_entry(self, entry):  # load an entry of <end> bytes
         if len(entry) != INDICES["end"]:
             raise RuntimeError('Invalid entry')
         self._entry = entry
 
-    def compare_sha( # used for quick file ownership verification
+    def compare_sha(  # used for quick file ownership verification
         self,
         file_name,
         user_key,
     ):
-        return encryption_util.sha(self.random, user_key, file_name)[:16] == self.sha
+        return encryption_util.sha(
+            self.random, user_key, file_name)[
+            :16] == self.sha
 
     def set_encrypted(
         self,
@@ -48,13 +53,13 @@ class RootEntry(object): # class to cleanly handle root entry operations
             raise RuntimeError('file name too long')
         file_name_length = struct.pack(">B", len(file_name))
         file_size = struct.pack(">I", file_size)
-        file_name += os.urandom( # padding file_name
+        file_name += os.urandom(  # padding file_name
             175 - len(file_name)
         )
         encrypted = encryption_util.aes_encrypt(
             key=user_key,
             iv=self.iv,
-            data=file_size+file_name_length+file_name,
+            data=file_size + file_name_length + file_name,
         )
         self._entry[INDICES["file_size"]:INDICES["main_block_num"]] = encrypted
 
@@ -69,7 +74,7 @@ class RootEntry(object): # class to cleanly handle root entry operations
         )
         file_size = struct.unpack(">I", decrypted[:4])[0]
         file_name_length = struct.unpack(">B", decrypted[4:5])[0]
-        file_name = decrypted[5:5+file_name_length]
+        file_name = decrypted[5:5 + file_name_length]
         return {
             "file_size": file_size,
             "file_name": file_name,
@@ -91,14 +96,14 @@ class RootEntry(object): # class to cleanly handle root entry operations
 
     @property
     def iv(self):
-        return str(self._entry[INDICES["iv"]:INDICES["iv"]+self.iv_size])
+        return str(self._entry[INDICES["iv"]:INDICES["iv"] + self.iv_size])
 
     @iv.setter
     def iv(self, value):
         if len(value) != self.iv_size:
             raise RuntimeError('iv size does not match varibale iv_size')
         self.iv_size = len(value)
-        self._entry[INDICES["iv"]:INDICES["iv"]+self.iv_size] = value
+        self._entry[INDICES["iv"]:INDICES["iv"] + self.iv_size] = value
 
     @property
     def main_block_num(self):
@@ -115,7 +120,7 @@ class RootEntry(object): # class to cleanly handle root entry operations
         )
 
     @property
-    def random(self): # random is byte string, not int
+    def random(self):  # random is byte string, not int
         return str(self._entry[INDICES["random"]:INDICES["sha"]])
 
     @random.setter

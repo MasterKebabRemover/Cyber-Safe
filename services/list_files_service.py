@@ -1,17 +1,12 @@
 #!/usr/bin/python
-import errno
-import os
-import socket
-import struct
 import logging
+import struct
 
 import constants
 import util
-from util import HTTPError
 from service_base import ServiceBase
 from root_entry import RootEntry
 import encryption_util
-from http_client import HttpClient
 import block_util
 
 FORM_HEAD = """
@@ -54,6 +49,7 @@ FORM_ENDING = """
     </body>
 """
 
+
 class ListFiles(ServiceBase):
     @staticmethod
     def name():
@@ -66,21 +62,56 @@ class ListFiles(ServiceBase):
         self._authorization = self.get_authorization(request_context)
         block_util.bd_action(
             request_context=request_context,
-            block_num=1,
+            block_num=0,
             action=constants.READ,
-            service_wake_up=self._after_root,
+            service_wake_up=self._after_init,
+        )        
+
+    def _after_init(
+        self,
+        request_context,
+    ):
+        init = bytearray(request_context["block"])
+        if init[:len(constants.INIT_SIGNATURE)] != constants.INIT_SIGNATURE:
+            raise util.HTTPError(500, "Internal Error", "Disk not initialized")
+        index = len(constants.INIT_SIGNATURE)
+        self._bitmaps = struct.unpack(">B", init[index:index+1])[0]
+        self._dir_roots = struct.unpack(">B", init[index+1:index+2])[0]
+        self._current_root = self._bitmaps + 1
+        self._root = bytearray(0)
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=self._current_root,
+            action=constants.READ,
+            service_wake_up=self._construct_root,
         )
 
+    def _construct_root(
+        self,
+        request_context,
+    ):
+        self._current_root += 1
+        self._root += request_context["block"]
+        if self._current_root <= self._dir_roots + self._bitmaps:
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=self._current_root,
+                action=constants.READ,
+                service_wake_up=self._construct_root,
+            )
+        else:
+            self._after_root(request_context)
+    
     def _after_root(
         self,
         request_context,
     ):
-        self._root = request_context["block"]
         file_list = FORM_HEAD
         index = 0
         while index < len(self._root):
             entry = RootEntry()
-            entry.load_entry(self._root[index: index + constants.ROOT_ENTRY_SIZE])
+            entry.load_entry(
+                self._root[index: index + constants.ROOT_ENTRY_SIZE])
             index += constants.ROOT_ENTRY_SIZE
             if entry.is_empty():
                 continue
@@ -89,7 +120,7 @@ class ListFiles(ServiceBase):
                 encrypted = entry.get_encrypted(
                     user_key=encryption_util.sha(self._authorization)[:16]
                 )
-            except Exception as e: # means key does not fits, item does not belong to user
+            except Exception as e:  # means key does not fits, item does not belong to user
                 continue
             # check if file belongs to user. if yes, list it.
             if entry.compare_sha(
@@ -110,5 +141,6 @@ class ListFiles(ServiceBase):
         self,
         request_context,
     ):
-        request_context["headers"][constants.CONTENT_LENGTH] = len(request_context["response"])
+        request_context["headers"][constants.CONTENT_LENGTH] = len(
+            request_context["response"])
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"

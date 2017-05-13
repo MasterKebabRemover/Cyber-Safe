@@ -3,14 +3,13 @@ import errno
 import socket
 import logging
 import traceback
-import urlparse
 import importlib
 
 import constants
 import util
 from services import service_base
 from pollable import Pollable
-from collable import Collable
+
 
 class HttpClient(Pollable):
 
@@ -20,7 +19,7 @@ class HttpClient(Pollable):
         state,
         app_context,
         fd_dict,
-        action, # must be constants.READ or constants.WRITE
+        action,  # must be constants.READ or constants.WRITE
         block_num,
         parent,
         block=None
@@ -104,7 +103,7 @@ class HttpClient(Pollable):
             # logging.debug(self.request_context["recv_buffer"])
         except Exception as e:
             code = 500
-            if type(e) == util.HTTPError:
+            if isinstance(e, util.HTTPError):
                 code = e.code
             traceback.print_exc()
             self.on_error(e)
@@ -120,7 +119,7 @@ class HttpClient(Pollable):
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
             code = 500
-            if type(e) == util.HTTPError:
+            if isinstance(e, util.HTTPError):
                 code = e.code
             traceback.print_exc()
             self.on_error(e)
@@ -165,7 +164,8 @@ class HttpClient(Pollable):
     def _get_first_line(
         self,
     ):
-        req, self.request_context["recv_buffer"] = util.recv_line(self.request_context["recv_buffer"])
+        req, self.request_context["recv_buffer"] = util.recv_line(
+            self.request_context["recv_buffer"])
         if not req:  # means that async server has yet to receive a full line
             return False
         req_comps = req.split(" ", 2)
@@ -190,7 +190,8 @@ class HttpClient(Pollable):
     ):
         if util.get_headers(self.request_context):
             self.request_context["content_length"] = int(
-                self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
+                self.request_context["req_headers"].get(
+                    constants.CONTENT_LENGTH, "0")
             )
             self.service_class.before_request_content(self.request_context)
             self._current_state = self._state_machine[self._current_state]["next"]
@@ -200,7 +201,8 @@ class HttpClient(Pollable):
     ):
         service_command = None
         while True:
-            service_command = self.service_class.handle_content(self.request_context)
+            service_command = self.service_class.handle_content(
+                self.request_context)
             if service_command is not True:
                 break
 
@@ -214,7 +216,8 @@ class HttpClient(Pollable):
     def _send_status_line(
         self,
     ):
-        self.request_context["req_headers"] = self.service_class.get_header_dict()
+        self.request_context["req_headers"] = self.service_class.get_header_dict(
+        )
         self.service_class.before_response_status(self.request_context)
         self._current_state = self._state_machine[self._current_state]["next"]
 
@@ -243,7 +246,7 @@ class HttpClient(Pollable):
         self.service_class.before_terminate(self.request_context)
         self.request_context["state"] = constants.CLOSING
         return False
-    
+
     def _reset_request_context(
         self,
     ):

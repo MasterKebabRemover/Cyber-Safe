@@ -1,8 +1,4 @@
 #!/usr/bin/python
-import errno
-import hashlib
-import os
-import socket
 import struct
 import logging
 import urlparse
@@ -15,8 +11,8 @@ import encryption_util
 from util import HTTPError
 from root_entry import RootEntry
 from service_base import ServiceBase
-from http_client import HttpClient
 import block_util
+
 
 class Download(ServiceBase):
     @staticmethod
@@ -28,36 +24,65 @@ class Download(ServiceBase):
         request_context,
     ):
         self._authorization = self.get_authorization(request_context)
-        self._before_root(request_context)
-
-    def _before_root(
-        self,
-        request_context,
-    ):
         qs = urlparse.parse_qs(request_context["parsed"].query)
         if not qs.get("filename"):
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
-            raise util.HTTPError(500, "Internal Error", util.text_to_css("File name missing", error=True))
+            raise util.HTTPError(500, "Internal Error", util.text_to_css(
+                "File name missing", error=True))
         request_context["file_name"] = str(qs["filename"][0])
         block_util.bd_action(
             request_context=request_context,
-            block_num=1,
+            block_num=0,
             action=constants.READ,
-            service_wake_up=self._after_root,
+            service_wake_up=self._after_init,
         )
+
+    def _after_init(
+        self,
+        request_context,
+    ):
+        init = bytearray(request_context["block"])
+        if init[:len(constants.INIT_SIGNATURE)] != constants.INIT_SIGNATURE:
+            raise util.HTTPError(500, "Internal Error", "Disk not initialized")
+        index = len(constants.INIT_SIGNATURE)
+        self._bitmaps = struct.unpack(">B", init[index:index+1])[0]
+        self._dir_roots = struct.unpack(">B", init[index+1:index+2])[0]
+        self._current_root = self._bitmaps + 1
+        self._root = bytearray(0)
+        block_util.bd_action(
+            request_context=request_context,
+            block_num=self._current_root,
+            action=constants.READ,
+            service_wake_up=self._construct_root,
+        )
+
+    def _construct_root(
+        self,
+        request_context,
+    ):
+        self._current_root += 1
+        self._root += request_context["block"]
+        if self._current_root <= self._dir_roots + self._bitmaps:
+            block_util.bd_action(
+                request_context=request_context,
+                block_num=self._current_root,
+                action=constants.READ,
+                service_wake_up=self._construct_root,
+            )
+        else:
+            self._after_root(request_context)
 
     def _after_root(
         self,
         request_context,
     ):
-        directory_root = request_context["block"]
         index = 0
         main_num = None
-        while index < constants.BLOCK_SIZE:
+        while index < len(self._root):
             # check if entry is the file
             entry = RootEntry()
             entry.load_entry(
-                directory_root[
+                self._root[
                     index: index + constants.ROOT_ENTRY_SIZE
                 ],
             )
@@ -75,7 +100,11 @@ class Download(ServiceBase):
                 request_context["headers"][constants.CONTENT_LENGTH] = encrypted["file_size"]
                 break
         if main_num is None:
-            raise HTTPError(500, "Internal Error", "File %s does not exist" % request_context["file_name"])
+            raise HTTPError(
+                500,
+                "Internal Error",
+                "File %s does not exist" %
+                request_context["file_name"])
         block_util.bd_action(
             request_context=request_context,
             block_num=main_num,
@@ -124,9 +153,7 @@ class Download(ServiceBase):
         if len(file_type) == 1:
             file_type.append("*")
         request_context["headers"][constants.CONTENT_TYPE] = constants.MIME_MAPPING.get(
-            file_type[1],
-            constants.MIME_MAPPING["*"],
-        )
+            file_type[1], constants.MIME_MAPPING["*"], )
         request_context["headers"]["Content-Disposition"] = (
             "attachment; filename=%s" % request_context["file_name"]
         )
@@ -163,9 +190,9 @@ class Download(ServiceBase):
             return constants.RETURN_AND_WAIT
         else:
             current_block_num = struct.unpack(
-                    ">I",
-                    self._dir_block[self._dir_index: self._dir_index + 4],
-                )[0]
+                ">I",
+                self._dir_block[self._dir_index: self._dir_index + 4],
+            )[0]
             if current_block_num == 0:
                 if not self._next_dir_block(request_context):
                     return None

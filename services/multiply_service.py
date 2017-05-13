@@ -5,6 +5,7 @@ import constants
 import util
 from service_base import ServiceBase
 
+
 class MultiplyService(ServiceBase):
     @staticmethod
     def name():
@@ -21,7 +22,7 @@ class MultiplyService(ServiceBase):
     ):
         try:
             qs = urlparse.parse_qs(request_context["parsed"].query)
-            result = int(qs['a'][0])*int(qs['b'][0])
+            result = int(qs['a'][0]) * int(qs['b'][0])
             message = util.text_to_html(
                 "The result is %s, my boy." % (result)
             )

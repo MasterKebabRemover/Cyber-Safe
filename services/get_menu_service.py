@@ -4,8 +4,8 @@ import logging
 import os
 
 import constants
-import util
 from service_base import ServiceBase
+
 
 class GetMenuService(ServiceBase):
     @staticmethod
@@ -17,12 +17,17 @@ class GetMenuService(ServiceBase):
         request_context,
     ):
         # try:
-        self._fd = os.open(request_context["app_context"]["base"] + "/menu.html", os.O_RDONLY, 0o666)
-        request_context["headers"][constants.CONTENT_LENGTH] = os.fstat(self._fd).st_size
+        self._fd = os.open(
+            request_context["app_context"]["base"] +
+            "/menu.html",
+            os.O_RDONLY,
+            0o666)
+        request_context["headers"][constants.CONTENT_LENGTH] = os.fstat(
+            self._fd).st_size
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         # except OSError as e:
-            # if e.errno != errno.ENOENT:
-                # raise
+        # if e.errno != errno.ENOENT:
+        # raise
 
         return True
 

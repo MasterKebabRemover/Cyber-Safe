@@ -7,6 +7,7 @@ import constants
 import util
 from service_base import ServiceBase
 
+
 class GetFileService(ServiceBase):
     @staticmethod
     def name():
@@ -23,20 +24,20 @@ class GetFileService(ServiceBase):
             )
         )
         base = request_context["app_context"]["base"]
-        if filename[:-len(request_context["parsed"].path)] != os.path.normpath(base):
-            raise RuntimeError("Malicious URI %s" % request_context["parsed"].path)
+        if filename[:-len(request_context["parsed"].path)
+                    ] != os.path.normpath(base):
+            raise RuntimeError("Malicious URI %s" %
+                               request_context["parsed"].path)
         try:
             self._fd = os.open(filename, os.O_RDONLY, 0o666)
-            request_context["headers"][constants.CONTENT_LENGTH] = os.fstat(self._fd).st_size
+            request_context["headers"][constants.CONTENT_LENGTH] = os.fstat(
+                self._fd).st_size
             request_context["headers"][constants.CONTENT_TYPE] = constants.MIME_MAPPING.get(
-                os.path.splitext(
-                    filename
-                )[1].lstrip('.'),
-                constants.MIME_MAPPING["*"],
-            )
+                os.path.splitext(filename)[1].lstrip('.'), constants.MIME_MAPPING["*"], )
         except OSError as e:
             if e.errno == errno.ENOENT:
-                raise util.HTTPError(500, "Internal Error", util.test_to_css("File %s not found" % filename, error=True))
+                raise util.HTTPError(500, "Internal Error", util.test_to_css(
+                    "File %s not found" % filename, error=True))
             if e.errno != errno.ENOENT:
                 raise
 

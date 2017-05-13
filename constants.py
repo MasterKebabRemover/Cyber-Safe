@@ -75,17 +75,18 @@ MAX_NUMBER_OF_HEADERS = 100
 Cookie = "Cookie"
 BASE = "./files/"
 INTERNAL_ERROR = "Internal Error"
-BLOCK_SIZE = 4096 # must be a multiple of 16 for AES
+BLOCK_SIZE = 4096  # must be a multiple of 16 for AES
 CONTENT_TYPE = "Content-Type"
 CONTENT_LENGTH = "Content-Length"
 AUTHORIZATION = "Authorization"
 UNATHORIZED = "Unathorized"
 CONFIG_NAME = "config.ini"
 KB = 1024
-MB = 1024*1024
+MB = 1024 * 1024
 IV_LENGTH = 16
 ROOT_ENTRY_SIZE = 256
 MAX_SEMAPHORE = 100
+INIT_SIGNATURE = "SIGNATURE"
 
 BACK_TO_LIST = """
     <br><form method="get" action="list">

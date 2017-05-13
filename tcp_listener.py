@@ -5,12 +5,14 @@ import logging
 import constants
 from pollable import Pollable
 
+
 class TCPListener(Pollable):
     request_context = {
         "state": constants.LISTENER,
         "recv_buffer": "",
         "send_buffer": "",
     }
+
     def __init__(
         self,
         bind_address,
@@ -33,11 +35,11 @@ class TCPListener(Pollable):
     ):
         client, addr = self.fd.accept()
         self._fd_dict[client.fileno()] = self._initiate(
-                socket=client,
-                state=constants.ACTIVE,
-                app_context=self._app_context,
-                fd_dict=self._fd_dict
-            )
+            socket=client,
+            state=constants.ACTIVE,
+            app_context=self._app_context,
+            fd_dict=self._fd_dict
+        )
         # logging.debug("listener created socket at %d" % hash(self._fd_dict[client.fileno()]))
 
     def on_write(self):

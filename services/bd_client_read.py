@@ -4,6 +4,7 @@ import logging
 import constants
 from service_base import ServiceBase
 
+
 class BDClientRead(ServiceBase):
     @staticmethod
     def name():
@@ -19,7 +20,6 @@ class BDClientRead(ServiceBase):
             constants.HTTP_SIGNATURE
         )
         request_context["send_buffer"] += cmd
-        
 
     def before_request_content(
         self,
@@ -33,7 +33,8 @@ class BDClientRead(ServiceBase):
         request_context,
     ):
         data = request_context["recv_buffer"][:request_context["content_length"]]
-        request_context["recv_buffer"] = request_context["recv_buffer"][len(data):]
+        request_context["recv_buffer"] = request_context["recv_buffer"][len(
+            data):]
         request_context["block"] += data
         request_context["content_length"] -= len(data)
         if len(request_context["block"]) == constants.BLOCK_SIZE:
@@ -41,22 +42,21 @@ class BDClientRead(ServiceBase):
         else:
             return bool(request_context["recv_buffer"])
 
-
     def before_response_headers(
         self,
         request_context,
     ):
-        return # must have his to override base
+        return  # must have his to override base
 
     def before_terminate(
         self,
         request_context,
     ):
         request_context["parent"].on_finish(block=request_context["block"])
-    
+
     def get_header_dict(
         self,
     ):
         return {
-            constants.CONTENT_LENGTH:0
+            constants.CONTENT_LENGTH: 0
         }

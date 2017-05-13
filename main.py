@@ -78,6 +78,7 @@ def parse_args():
     args.base = os.path.normpath(os.path.realpath(args.base))
     return args
 
+
 def init_block_device(filename, filesize):
     with util.FDOpen(
         filename,
@@ -122,7 +123,7 @@ def __main__():
         }
         sparse = None
         admin = Config.get('frontend', 'admin.password')
-    
+
     if args.foreground:
         daemonize()
 
@@ -136,9 +137,9 @@ def __main__():
     signal.signal(signal.SIGTERM, terminate)
 
     poll_object = {
-            "poll": event_object.PollEvents,
-            "select": event_object.SelectEvents,
-        }[args.event_method]
+        "poll": event_object.PollEvents,
+        "select": event_object.SelectEvents,
+    }[args.event_method]
 
     app_context = {
         "log": args.log_file,
@@ -153,8 +154,9 @@ def __main__():
         "config": Config,
         "admin": admin,
         "base": args.base,
-        "password_dict":{},
-        "semaphore": multiprocessing.BoundedSemaphore(constants.MAX_SEMAPHORE), # for disk read/write control
+        "password_dict": {},
+        # for disk read/write control
+        "semaphore": multiprocessing.BoundedSemaphore(constants.MAX_SEMAPHORE),
     }
 
     server = async_server.Server(
@@ -169,6 +171,7 @@ def __main__():
     objects.append(server)
     logging.debug("main module called - server.run()")
     server.run()
+
 
 if __name__ == "__main__":
     __main__()

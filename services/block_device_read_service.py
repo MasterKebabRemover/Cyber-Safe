@@ -1,18 +1,12 @@
 #!/usr/bin/python
-import ConfigParser
-import hashlib
 import os
-import logging
-import struct
-
-import pyaes
 
 import constants
 import util
 import urlparse
 from service_base import ServiceBase
-from integration_util import xor_strings
 import encryption_util
+
 
 class BlockDeviceRead(ServiceBase):
     @staticmethod
@@ -49,7 +43,7 @@ class BlockDeviceRead(ServiceBase):
             ) as fd:
                 os.lseek(
                     fd,
-                    constants.BLOCK_SIZE*request_context["block"],
+                    constants.BLOCK_SIZE * request_context["block"],
                     os.SEEK_SET,
                 )
                 while len(data) < constants.BLOCK_SIZE:
@@ -59,8 +53,10 @@ class BlockDeviceRead(ServiceBase):
                     data += read_buffer
             # now decrypt data by block device keys
             aes = encryption_util.get_aes(
-                key=request_context["app_context"]["config"].get('blockdevice', 'key'),
-                ivkey=request_context["app_context"]["config"].get('blockdevice', 'ivkey'),
+                key=request_context["app_context"]["config"].get(
+                    'blockdevice', 'key'),
+                ivkey=request_context["app_context"]["config"].get(
+                    'blockdevice', 'ivkey'),
                 block_num=request_context["block"],
             )
             data = encryption_util.decrypt_block_aes(aes, data)

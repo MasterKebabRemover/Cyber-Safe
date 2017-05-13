@@ -1,12 +1,14 @@
 #!/usr/bin/python
 import Cookie
 import logging
+import struct
 import urlparse
 import os
 
-from encryption_util import sha
+import block_util
 import constants
 import util
+
 
 class ServiceBase(object):
     @staticmethod
@@ -49,8 +51,8 @@ class ServiceBase(object):
     ):
         if constants.CONTENT_LENGTH not in request_context["headers"]:
             request_context["headers"][constants.CONTENT_LENGTH] = len(
-                    request_context["response"]
-                )
+                request_context["response"]
+            )
 
     def before_response_content(
         self,
@@ -69,12 +71,12 @@ class ServiceBase(object):
         request_context,
     ):
         pass
-    
+
     def get_header_dict(
         self,
     ):
         return {
-            constants.CONTENT_LENGTH:0,
+            constants.CONTENT_LENGTH: 0,
             constants.Cookie: None,
         }
 
@@ -82,7 +84,8 @@ class ServiceBase(object):
         self,
         request_context,
     ):
-        # check query and cookie headers. if neither exist, raise error. if any exists, put it in request_context and return it.
+        # check query and cookie headers. if neither exist, raise error. if any
+        # exists, put it in request_context and return it.
         authorization = None
         qs = urlparse.parse_qs(request_context["parsed"].query)
         authorization = qs.get('password', [None, None])[0]
@@ -93,8 +96,10 @@ class ServiceBase(object):
             request_context["headers"][header[0]] = header[1]
             request_context["app_context"]["password_dict"][c["random"].value] = authorization
         else:
-            random = util.parse_cookies(request_context["req_headers"].get(constants.Cookie), "random")
-            authorization = request_context["app_context"]["password_dict"].get(random)
+            random = util.parse_cookies(
+                request_context["req_headers"].get(constants.Cookie), "random")
+            authorization = request_context["app_context"]["password_dict"].get(
+                random)
 
         if authorization:
             request_context["authorization"] = authorization

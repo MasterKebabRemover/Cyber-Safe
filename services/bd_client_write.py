@@ -4,6 +4,7 @@ import logging
 import constants
 from service_base import ServiceBase
 
+
 class BDClientWrite(ServiceBase):
     @staticmethod
     def name():
@@ -42,10 +43,10 @@ class BDClientWrite(ServiceBase):
         request_context,
     ):
         request_context["parent"].on_finish()
-    
+
     def get_header_dict(
         self,
     ):
         return {
-            constants.CONTENT_LENGTH:0
+            constants.CONTENT_LENGTH: 0
         }

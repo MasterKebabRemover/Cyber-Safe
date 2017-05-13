@@ -5,6 +5,7 @@ import constants
 import util
 from service_base import ServiceBase
 
+
 class LoginService(ServiceBase):
     @staticmethod
     def name():
@@ -45,7 +46,6 @@ class LoginService(ServiceBase):
             request_context["response"],
         )
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
-        
 
     def get_header_dict(
         self,

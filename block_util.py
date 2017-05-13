@@ -4,12 +4,13 @@ import integration_util
 import encryption_util
 import logging
 
-def bd_action(# should be called instead of read_block, write_block
+
+def bd_action(  # should be called instead of read_block, write_block
     request_context,
     block_num,
     action,
     service_wake_up=None,
-    block = None
+    block=None
 ):
     request_context["block_num"] = block_num
     if action == constants.READ:
@@ -26,6 +27,7 @@ def bd_action(# should be called instead of read_block, write_block
         write_block(request_context, block)
     else:
         raise RuntimeError('Invalid action')
+
 
 def read_block(
     request_context,
@@ -51,12 +53,15 @@ def read_block(
             request_context["block"],
         )
         # if received all replies, decrypt wake up the service back
-        if request_context.get("replies") == len(request_context["app_context"]["devices"]):
+        if request_context.get("replies") == len(
+                request_context["app_context"]["devices"]):
             request_context["app_context"]["semaphore"].release()
             # decrypt data with aes frontend key
             aes = encryption_util.get_aes(
-                key=request_context["app_context"]["config"].get('frontend', 'key'),
-                ivkey=request_context["app_context"]["config"].get('frontend', 'ivkey'),
+                key=request_context["app_context"]["config"].get(
+                    'frontend', 'key'),
+                ivkey=request_context["app_context"]["config"].get(
+                    'frontend', 'ivkey'),
                 block_num=request_context["block_num"],
             )
             request_context["read_block"] = encryption_util.decrypt_block_aes(
@@ -71,6 +76,7 @@ def read_block(
             request_context["state"] = constants.SLEEPING
             request_context["wake_up_function"] = read_block
 
+
 def write_block(
     request_context,
     block,
@@ -78,7 +84,8 @@ def write_block(
     # encrypt using aes and frontend keys
     aes = encryption_util.get_aes(
         key=request_context["app_context"]["config"].get('frontend', 'key'),
-        ivkey=request_context["app_context"]["config"].get('frontend', 'ivkey'),
+        ivkey=request_context["app_context"]["config"].get(
+            'frontend', 'ivkey'),
         block_num=request_context["block_num"],
     )
     block = encryption_util.encrypt_block_aes(aes, block)
@@ -91,7 +98,9 @@ def write_block(
             client_action=constants.WRITE,
             client_block_num=request_context["block_num"],
             block=block[i],
-            block_device_num=request_context["app_context"]["devices"].keys()[i],
+            block_device_num=request_context["app_context"]["devices"].keys()[
+                i],
         )
-    while request_context["app_context"]["semaphore"].get_value() < constants.MAX_SEMAPHORE:
+    while request_context["app_context"]["semaphore"].get_value(
+    ) < constants.MAX_SEMAPHORE:
         request_context["app_context"]["semaphore"].release()

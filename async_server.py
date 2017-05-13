@@ -1,10 +1,7 @@
 #!/usr/bin/python
-import contextlib
-import collections
 import errno
 import logging
 import select
-import socket
 import traceback
 
 import constants
@@ -38,7 +35,7 @@ class Server(object):
             fd_dict=self._fd_dict,
         )
         self._fd_dict[listener.fileno()] = listener
-        
+
     def stop(self, signum, frame):
         self._terminate = True
 
@@ -53,10 +50,10 @@ class Server(object):
             client_entry = None
             client, c_address = entry.socket.accept()
             client_entry = http_socket.HttpSocket(
-                    client,
-                    constants.READING,
-                    self._app_context,
-                )
+                client,
+                constants.READING,
+                self._app_context,
+            )
             client.setblocking(0)
             logging.debug(
                 "new connection: %s",
@@ -88,8 +85,9 @@ class Server(object):
             if (
                 entry.request_context["state"] == constants.LISTENER or
                 (
-                    entry.request_context["state"] ==constants.ACTIVE and
-                    len(entry.request_context["recv_buffer"]) < constants.BLOCK_SIZE
+                    entry.request_context["state"] == constants.ACTIVE and
+                    len(entry.request_context["recv_buffer"]
+                        ) < constants.BLOCK_SIZE
                 )
             ):
                 mask |= select.POLLIN
@@ -107,20 +105,20 @@ class Server(object):
 
                 for entry in self._fd_dict.values():
                     if (
-                            entry.request_context["state"] == constants.CLOSING and
-                            not entry.request_context["send_buffer"]
-                        ):
-                            self._unregister(entry)
+                        entry.request_context["state"] == constants.CLOSING and
+                        not entry.request_context["send_buffer"]
+                    ):
+                        self._unregister(entry)
 
                 for entry in self._fd_dict.values():
                     try:
                         # logging.debug(entry)
-                        while entry.request_context["state"] != constants.SLEEPING and entry.on_idle():
+                        while entry.request_context["state"] != constants.SLEEPING and entry.on_idle(
+                        ):
                             pass
                     except Exception as e:
                         logging.error(traceback.format_exc())
                         self._unregister(entry)
-                events = ()
                 try:
                     for fd, flag in self.create_poller().poll(self._timeout):
                         entry = self._fd_dict[fd]

@@ -4,6 +4,7 @@ import constants
 import util
 from service_base import ServiceBase
 
+
 class SecretService2(ServiceBase):
     @staticmethod
     def name():
@@ -25,7 +26,8 @@ class SecretService2(ServiceBase):
         self,
         request_context,
     ):
-        random = util.parse_cookies(request_context["req_headers"].get(constants.Cookie), "random")
+        random = util.parse_cookies(
+            request_context["req_headers"].get(constants.Cookie), "random")
         user = request_context["accounts"].get(random)
         if user:
             message = "Welcome, %s!" % (user)

@@ -4,7 +4,6 @@ import socket
 import logging
 import urlparse
 import traceback
-import collections
 import importlib
 
 import constants
@@ -13,6 +12,7 @@ from services import service_base
 from pollable import Pollable
 from collable import Collable
 
+
 class HttpSocket(Pollable, Collable):
     def __init__(
         self,
@@ -20,7 +20,7 @@ class HttpSocket(Pollable, Collable):
         state,
         app_context,
         fd_dict,
-        service_class = service_base.ServiceBase()
+        service_class=service_base.ServiceBase()
     ):
         self.request_context = {
             "code": 200,
@@ -79,7 +79,6 @@ class HttpSocket(Pollable, Collable):
                 "next": None,
             },
         }
-        
 
     def on_read(
         self,
@@ -89,7 +88,7 @@ class HttpSocket(Pollable, Collable):
             # logging.debug(self.request_context["recv_buffer"])
         except Exception as e:
             code = 500
-            if type(e) == util.HTTPError:
+            if isinstance(e, util.HTTPError):
                 code = e.code
             traceback.print_exc()
             self.on_error()
@@ -104,10 +103,10 @@ class HttpSocket(Pollable, Collable):
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
             code = 500
-            if type(e) == util.HTTPError:
+            if isinstance(e, util.HTTPError):
                 code = e.code
             traceback.print_exc()
-            # self.on_error()
+            self.on_error()
             util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)
@@ -126,7 +125,7 @@ class HttpSocket(Pollable, Collable):
                 ]
         except socket.error as e:
             if e.errno == errno.EPIPE:
-                self.request_context["send_buffer"] = "" # to stop sending
+                self.request_context["send_buffer"] = ""  # to stop sending
         except Exception as e:
             traceback.print_exc()
             self.on_error
@@ -160,14 +159,13 @@ class HttpSocket(Pollable, Collable):
                 wake_up_function(self.request_context)
         except Exception as e:
             code = 500
-            if type(e) == util.HTTPError:
+            if isinstance(e, util.HTTPError):
                 code = e.code
             traceback.print_exc()
             self.on_error()
             util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)
-        
 
     def fileno(self):
         return self.socket.fileno()
@@ -175,7 +173,8 @@ class HttpSocket(Pollable, Collable):
     def _get_first_line(
         self,
     ):
-        req, self.request_context["recv_buffer"] = util.recv_line(self.request_context["recv_buffer"])
+        req, self.request_context["recv_buffer"] = util.recv_line(
+            self.request_context["recv_buffer"])
         if not req:  # means that async server has yet to receive a full line
             return False
         req_comps = req.split(" ", 2)
@@ -213,14 +212,16 @@ class HttpSocket(Pollable, Collable):
         )(self.request_context)
         self._current_state = self._state_machine[self._current_state]["next"]
         self.service_class.before_request_headers(self.request_context)
-        self.request_context["req_headers"] = self.service_class.get_header_dict()
+        self.request_context["req_headers"] = self.service_class.get_header_dict(
+        )
 
     def _get_headers(
         self,
     ):
         if util.get_headers(self.request_context):
             self.request_context["content_length"] = int(
-                self.request_context["req_headers"].get(constants.CONTENT_LENGTH, "0")
+                self.request_context["req_headers"].get(
+                    constants.CONTENT_LENGTH, "0")
             )
             self._current_state = self._state_machine[self._current_state]["next"]
             self.service_class.before_request_content(self.request_context)
@@ -232,7 +233,8 @@ class HttpSocket(Pollable, Collable):
     ):
         service_command = None
         while True:
-            service_command = self.service_class.handle_content(self.request_context)
+            service_command = self.service_class.handle_content(
+                self.request_context)
             if service_command is not True:
                 break
 
@@ -247,12 +249,12 @@ class HttpSocket(Pollable, Collable):
         self,
     ):
         self.request_context["send_buffer"] += ((
-                "%s %s %s\r\n"
-            ) % (
-                constants.HTTP_SIGNATURE,
-                self.request_context["code"],
-                self.request_context["status"],
-            )
+            "%s %s %s\r\n"
+        ) % (
+            constants.HTTP_SIGNATURE,
+            self.request_context["code"],
+            self.request_context["status"],
+        )
         ).encode("utf-8")
         self.request_context["status_sent"] = True
         self.service_class.before_response_headers(self.request_context)
@@ -291,7 +293,7 @@ class HttpSocket(Pollable, Collable):
         self.service_class.before_terminate(self.request_context)
         self.request_context["state"] = constants.CLOSING
         return False
-    
+
     def _reset_request_context(
         self,
     ):
@@ -300,4 +302,3 @@ class HttpSocket(Pollable, Collable):
         self.request_context["req_headers"] = {}
         self.request_context["response"] = ""
         self.request_context["headers"] = {}
-

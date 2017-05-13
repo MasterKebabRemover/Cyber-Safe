@@ -1,4 +1,3 @@
-import constants
 import hashlib
 import struct
 import logging
@@ -6,7 +5,8 @@ import hmac
 
 import pyaes
 
-def get_aes( # creates an aes object with iv that matches block_num
+
+def get_aes(  # creates an aes object with iv that matches block_num
     key,
     ivkey,
     block_num=None,
@@ -23,6 +23,7 @@ def get_aes( # creates an aes object with iv that matches block_num
 
     return pyaes.AESModeOfOperationCBC(key, iv=iv)
 
+
 def encrypt_block_aes(
     aes,
     block,
@@ -30,17 +31,18 @@ def encrypt_block_aes(
     index = 0
     result = bytearray(len(block))
     while index < len(block):
-        result[index:index+16] = struct.pack(
+        result[index:index + 16] = struct.pack(
             "16s",
             aes.encrypt(
                 struct.unpack(
                     "16s",
-                    block[index:index+16]
+                    block[index:index + 16]
                 )[0]
             )
         )
         index += 16
     return result
+
 
 def decrypt_block_aes(
     aes,
@@ -49,23 +51,25 @@ def decrypt_block_aes(
     index = 0
     result = bytearray(len(block))
     while index < len(block):
-        result[index:index+16] = struct.pack(
+        result[index:index + 16] = struct.pack(
             "16s",
             aes.decrypt(
                 struct.unpack(
                     "16s",
-                    block[index:index+16],
+                    block[index:index + 16],
                 )[0]
             )
         )
         index += 16
     return result
 
+
 def sha(data, *more_data):
     h = hmac.new(data, digestmod=hashlib.sha1)
     for i in more_data:
         h.update(i)
     return h.digest()
+
 
 def aes_encrypt(
     key,
@@ -77,6 +81,7 @@ def aes_encrypt(
     result += aes.feed(data)
     result += aes.feed()
     return result
+
 
 def aes_decrypt(
     key,

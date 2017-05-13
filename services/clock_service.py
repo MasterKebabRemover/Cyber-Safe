@@ -5,6 +5,7 @@ import constants
 import util
 from service_base import ServiceBase
 
+
 class ClockService(ServiceBase):
     @staticmethod
     def name():
