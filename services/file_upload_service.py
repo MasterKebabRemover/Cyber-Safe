@@ -79,7 +79,6 @@ class FileUploadService(ServiceBase):
         request_context["req_headers"]["Content-Disposition"] = None
         request_context["req_headers"]["Content-Type"] = None
 
-        request_context["response"] = "The files:\r\n"  # prepare reply in case of success
 
     def _handle_headers(
         self,
@@ -115,7 +114,7 @@ class FileUploadService(ServiceBase):
                 request_context["file_name"] = field.split("filename=")[1].strip("\"")
         if not request_context["file_name"]:
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
-            raise HTTPError(500, "Internal Error", "file name missing" + constants.BACK_TO_LIST) 
+            raise HTTPError(500, "Internal Error", util.text_to_css("Filen name missing", error=True)) 
         if len(request_context["file_name"]) > 60:
             raise HTTPError(500, "Internal Error", "filename %s too long" % request_context["file_name"])
         block_util.bd_action(
@@ -315,7 +314,6 @@ class FileUploadService(ServiceBase):
             action=constants.WRITE,
             block=self._root,
         )
-        request_context["response"] += "%s\r\n" % (request_context["file_name"])
         request_context["recv_buffer"] = request_context["recv_buffer"][len(request_context["boundary"]):]
         request_context["content_length"] -= len(request_context["boundary"])
         self._current_state = self._state_machine[self._current_state]["next"]
@@ -351,9 +349,8 @@ class FileUploadService(ServiceBase):
         request_context,
     ):
         if request_context["code"] == 200:
-            request_context["response"] += "Were uploaded successfully"
-        request_context["response"] += constants.BACK_TO_LIST
-        request_context["response"] = util.text_to_html(request_context["response"])
+            request_context["response"] += "File uploaded successfully"
+        request_context["response"] = util.text_to_html(util.text_to_css(request_context["response"]))
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(FileUploadService, self).before_response_headers(request_context)
 

@@ -107,7 +107,7 @@ class HttpClient(Pollable):
             if type(e) == util.HTTPError:
                 code = e.code
             traceback.print_exc()
-            self.on_error()
+            self.on_error(e)
             util.add_status(self, code, e)
         self.on_idle()
 
@@ -123,7 +123,7 @@ class HttpClient(Pollable):
             if type(e) == util.HTTPError:
                 code = e.code
             traceback.print_exc()
-            self.on_error()
+            self.on_error(e)
             util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)
@@ -148,7 +148,10 @@ class HttpClient(Pollable):
 
     def on_error(
         self,
+        error=None,
     ):
+        if error:
+            self.request_context["parent"].on_finish(error=error)
         self.request_context["state"] = constants.CLOSING
 
     def on_close(

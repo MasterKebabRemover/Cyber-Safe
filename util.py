@@ -72,6 +72,16 @@ def text_to_html(
 ):
     return ("<HTML>\r\n<BODY>\r\n%s\r\n</BODY>\r\n</HTML>" % text)
 
+def text_to_css(
+    text,
+    error=False,
+):
+    return (
+        constants.RESPONSE_CSS +
+        '<h1 %s>%s</h1>' % ('class="error"'*error, text) +
+        constants.BACK_TO_MENU
+    )
+
 def random_cookie():
     result = ""
     for i in range(0, 64):

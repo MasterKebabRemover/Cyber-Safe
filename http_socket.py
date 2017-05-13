@@ -146,11 +146,14 @@ class HttpSocket(Pollable, Collable):
     def on_finish(
         self,
         block="",
+        error=None,
     ):
         self.request_context["state"] = constants.ACTIVE
         self.request_context["block"] = block
         # logging.debug("BLOCK %s" % block)
         try:
+            if error:
+                raise RuntimeError(str(error))
             wake_up_function = self.request_context.get("wake_up_function")
             self.request_context["wake_up_function"] = None
             if wake_up_function:
@@ -160,7 +163,7 @@ class HttpSocket(Pollable, Collable):
             if type(e) == util.HTTPError:
                 code = e.code
             traceback.print_exc()
-            self.on_error
+            self.on_error()
             util.add_status(self, code, e)
             self.request_context["response"] = e.message
             self.service_class = service_base.ServiceBase(self.request_context)

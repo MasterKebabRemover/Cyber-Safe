@@ -37,7 +37,7 @@ class DeleteService(ServiceBase):
         qs = urlparse.parse_qs(request_context["parsed"].query)
         if not qs.get("filename"):
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
-            raise util.HTTPError(500, "Internal Error", "file name missing" + constants.BACK_TO_LIST)
+            raise util.HTTPError(500, "Internal Error", util.text_to_css("Filen name missing", error=True))
         request_context["filename"] = str(qs["filename"][0])
         block_util.bd_action(
             request_context=request_context,
@@ -81,7 +81,7 @@ class DeleteService(ServiceBase):
                 break
             index += constants.ROOT_ENTRY_SIZE
         if dir_num is None:
-            raise util.HTTPError(500, "Internal Error", "file %s not found" % request_context["filename"])
+            raise util.HTTPError(500, "Internal Error", util.text_to_css("file %s not found" % request_context["filename"], error=True))
 
         # delete entry, turn off directory block bit in bitmap and request directory block
         self._bitmap = integration_util.bitmap_set_bit(
@@ -183,8 +183,7 @@ class DeleteService(ServiceBase):
         request_context,
     ):
 
-        request_context["response"] = "file %s was deleted successfully" % request_context["filename"]
-        request_context["response"] += constants.BACK_TO_LIST
-        request_context["response"] = util.text_to_html(request_context["response"])
+        request_context["response"] = "File deleted successfully"
+        request_context["response"] = util.text_to_html(util.text_to_css(request_context["response"]))
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(DeleteService, self).before_response_headers(request_context)

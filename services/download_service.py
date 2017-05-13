@@ -37,7 +37,7 @@ class Download(ServiceBase):
         qs = urlparse.parse_qs(request_context["parsed"].query)
         if not qs.get("filename"):
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
-            raise util.HTTPError(500, "Internal Error", "file name missing" + constants.BACK_TO_LIST)
+            raise util.HTTPError(500, "Internal Error", util.text_to_css("File name missing", error=True))
         request_context["file_name"] = str(qs["filename"][0])
         block_util.bd_action(
             request_context=request_context,

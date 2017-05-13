@@ -48,8 +48,7 @@ class InitService(ServiceBase):
         request_context,
     ):
 
-        request_context["response"] = "disk initialized successfuly"
-        request_context["response"] += constants.BACK_TO_MENU
+        request_context["response"] = util.text_to_css("disk initialized successfuly")
         request_context["response"] = util.text_to_html(request_context["response"])
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(InitService, self).before_response_headers(request_context)

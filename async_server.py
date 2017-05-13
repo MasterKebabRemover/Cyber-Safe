@@ -78,6 +78,8 @@ class Server(object):
     def create_poller(self):
         poller = self._event_object()
         for entry in self._fd_dict.values():
+            if entry.request_context["state"] == constants.SLEEPING:
+                continue
             mask = select.POLLERR
             if (
                 entry.request_context["send_buffer"]

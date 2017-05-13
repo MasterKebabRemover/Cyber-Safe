@@ -28,10 +28,14 @@ FORM_HEAD = """
 """
 
 FORM_ENTRY = """
-    <tr class="hoverable"><td><div class="radio">
-    <input type="radio" value="R1" name="filename">R1</div></td>
-    <td><div class="radiotext">
-    R2</div></td></tr>
+    <tr class="hoverable"><td>
+    <label>
+    <input type="radio" class="radio" value="R1" name="filename" />
+    R1
+    </td>
+    <td>R2</td>
+    </label>
+    </tr>
 """
 
 FORM_ENDING = """

@@ -25,7 +25,7 @@ class AdminService(ServiceBase):
     ):
         if self.get_authorization(request_context) != request_context["app_context"]["admin"]:
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
-            raise util.HTTPError(500, "Internal Error", "Admin password required" + constants.BACK_TO_MENU)
+            raise util.HTTPError(500, "Internal Error", util.text_to_css("Admin password required", error=True))
         request_context["code"] = 307
         request_context["status"] = "Temporary Redirect"
         request_context["headers"]["Location"] = "admin.html"

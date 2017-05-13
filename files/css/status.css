@@ -1,0 +1,35 @@
+h1 {
+    font-size: 400%;
+    text-align: center;
+    color: green;
+}
+
+h1.error {
+    color: red;
+}
+
+input[type=submit] {
+    width: 30%;
+    background-color: #999999;
+    color: white;
+    padding: 14px 20px;
+    border: outset;
+    border-radius: 400px;
+    cursor: pointer;
+    text-align:center;
+    font-size: 36px;
+    margin-left: 35%;
+}
+
+input[type=submit]:hover {
+    width: 30%;
+    background-color: #c0c0c0;
+    color: white;
+    padding: 14px 20px;
+    border: outset;
+    border-radius: 400px;
+    cursor: pointer;
+    text-align:center;
+    font-size: 36px;
+    margin-left: 35%;
+}

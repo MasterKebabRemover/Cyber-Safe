@@ -2,6 +2,7 @@
 import argparse
 import ConfigParser
 import logging
+import multiprocessing
 import os
 import resource
 import signal
@@ -49,7 +50,7 @@ def parse_args():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=None,
+        default=0,
         help="Optional server polling timeout",
     )
     parser.add_argument(
@@ -152,7 +153,8 @@ def __main__():
         "config": Config,
         "admin": admin,
         "base": args.base,
-        "password_dict":{}
+        "password_dict":{},
+        "semaphore": multiprocessing.BoundedSemaphore(constants.MAX_SEMAPHORE), # for disk read/write control
     }
 
     server = async_server.Server(
@@ -170,5 +172,3 @@ def __main__():
 
 if __name__ == "__main__":
     __main__()
-
-# /http://localhost:8888/file.txt

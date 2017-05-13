@@ -36,7 +36,7 @@ class GetFileService(ServiceBase):
             )
         except OSError as e:
             if e.errno == errno.ENOENT:
-                raise util.HTTPError(500, "Internal Error", "File %s not found" % filename)
+                raise util.HTTPError(500, "Internal Error", util.test_to_css("File %s not found" % filename, error=True))
             if e.errno != errno.ENOENT:
                 raise
 

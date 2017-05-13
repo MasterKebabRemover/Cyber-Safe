@@ -13,10 +13,16 @@ def bd_action(# should be called instead of read_block, write_block
 ):
     request_context["block_num"] = block_num
     if action == constants.READ:
+        if not request_context["app_context"]["semaphore"].acquire(False):
+            raise RuntimeError('Disk busy')
         request_context["service_wake_up"] = service_wake_up
         request_context["read_block"] = None
         read_block(request_context)
     elif action == constants.WRITE:
+        if request_context["app_context"]["semaphore"].get_value() == 0:
+            raise RuntimeError('Disk busy')
+        while request_context["app_context"]["semaphore"].acquire(False):
+            pass
         write_block(request_context, block)
     else:
         raise RuntimeError('Invalid action')
@@ -46,6 +52,7 @@ def read_block(
         )
         # if received all replies, decrypt wake up the service back
         if request_context.get("replies") == len(request_context["app_context"]["devices"]):
+            request_context["app_context"]["semaphore"].release()
             # decrypt data with aes frontend key
             aes = encryption_util.get_aes(
                 key=request_context["app_context"]["config"].get('frontend', 'key'),
@@ -86,3 +93,5 @@ def write_block(
             block=block[i],
             block_device_num=request_context["app_context"]["devices"].keys()[i],
         )
+    while request_context["app_context"]["semaphore"].get_value() < constants.MAX_SEMAPHORE:
+        request_context["app_context"]["semaphore"].release()

@@ -85,6 +85,7 @@ KB = 1024
 MB = 1024*1024
 IV_LENGTH = 16
 ROOT_ENTRY_SIZE = 256
+MAX_SEMAPHORE = 100
 
 BACK_TO_LIST = """
     <br><form method="get" action="list">
@@ -94,6 +95,12 @@ BACK_TO_LIST = """
 
 BACK_TO_MENU = """
     <br><form method="get" action="menu.html">
-    <input type="submit" value="Back to the file list">
+    <input type="submit" value="Back to menu">
     </form>
+"""
+
+RESPONSE_CSS = """
+    <head>
+    <link rel="stylesheet" href="css/status.css">
+    </head>
 """
