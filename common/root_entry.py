@@ -4,15 +4,16 @@ import os
 import struct
 
 INDICES = {
-    "iv_size": 0,
-    "iv": 1,
-    "file_size": 33,
-    "file_name_length": 37,
+    "allocated": 0, # marks whether entry is empty or not
+    "iv_size": 1,
+    "iv": 2,
+    "file_size": 34,
+    "file_name_length": 38,
     # will be padded to 180 bytes with random, then encrypted to get 196 byte
     # output
-    "file_name": 38,
-    "main_block_num": 225,
-    "blank": 229,
+    "file_name": 39,
+    "main_block_num": 226,
+    "blank": 230,
     "random": 236,
     "sha": 240,
     "end": 256,
@@ -26,8 +27,8 @@ class RootEntry(object):  # class to cleanly handle root entry operations
     def __str__(self):
         return str(self._entry)
 
-    def is_empty(self):  # compare self to empty entry
-        return str(self) == str(RootEntry())
+    def is_empty(self):  # check if entry is empty, if first byte is 0
+        return not self._entry[INDICES["allocated"]]
 
     def load_entry(self, entry):  # load an entry of <end> bytes
         if len(entry) != INDICES["end"]:
@@ -79,6 +80,12 @@ class RootEntry(object):  # class to cleanly handle root entry operations
             "file_size": file_size,
             "file_name": file_name,
         }
+
+    def mark_full(self):
+        self._entry[INDICES["allocated"]: INDICES["iv_size"]] = chr(1)    
+
+    def mark_empty(self):
+        self._entry[INDICES["allocated"]: INDICES["iv_size"]] = chr(0)    
 
     @property
     def iv_size(self):

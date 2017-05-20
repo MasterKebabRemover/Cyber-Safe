@@ -85,7 +85,7 @@ class FileUploadService(ServiceBase):
             request_context["content_length"] -= len(line)
             # for CRLF lost in util.recv_line
             request_context["content_length"] -= 2
-            if (line + "\r\n") == str(request_context["boundary"]):
+            if (line + constants.CRLF) == str(request_context["boundary"]):
                 line, request_context["recv_buffer"] = util.recv_line(
                     request_context["recv_buffer"])
                 continue
@@ -115,7 +115,7 @@ class FileUploadService(ServiceBase):
         if not request_context["file_name"]:
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
             raise HTTPError(500, "Internal Error", util.text_to_css(
-                "Filen name missing", error=True))
+                "File name missing", error=True))
         if len(request_context["file_name"]) > 60:
             raise HTTPError(
                 500, "Internal Error", "filename %s too long" %
@@ -132,7 +132,6 @@ class FileUploadService(ServiceBase):
         # check that no files exist with same name
         # find place in bitmap for main block of new file:
         self._main_block_num = self._next_bitmap_index()
-        logging.debug(self._main_block_num)
 
         # create entry for new file in dir root
         index = 0
@@ -157,8 +156,8 @@ class FileUploadService(ServiceBase):
         if not created:
             raise HTTPError(500, "Internal Error", "no room in disk")
         # create main block for new file to later write to disk
-        self._main_block = bytearray(constants.BLOCK_SIZE)
-        self._dir_block = bytearray(constants.BLOCK_SIZE)
+        self._main_block = bytearray(0)
+        self._dir_block = bytearray(0)
         self._main_index = 0
         self._dir_index = 0
         request_context["buffer"] = ""
@@ -182,7 +181,7 @@ class FileUploadService(ServiceBase):
             request_context["boundary"])
         if index == 0:
             old_length = len(request_context["buffer"])
-            request_context["buffer"] = util.ljust_00(
+            request_context["buffer"] = util.random_pad(
                 request_context["buffer"], constants.BLOCK_SIZE - constants.IV_LENGTH)
             request_context["file_size"] -= (
                 len(request_context["buffer"]) - old_length)
@@ -219,8 +218,7 @@ class FileUploadService(ServiceBase):
                     request_context["file_name"])
             # save block to write for future
             next_bitmap_index = self._next_bitmap_index()
-            self._main_block[self._main_index: self._main_index +
-                             4] = struct.pack(">I", next_bitmap_index, )
+            self._main_block += struct.pack(">I", next_bitmap_index, )
             self._main_index += 4
             block_util.bd_action(
                 request_context=request_context,
@@ -228,7 +226,7 @@ class FileUploadService(ServiceBase):
                 action=constants.WRITE,
                 block=self._dir_block,
             )
-            self._dir_block = bytearray(constants.BLOCK_SIZE)
+            self._dir_block = bytearray(0)
             self._dir_index = 0
             # get the data block back
 
@@ -236,7 +234,7 @@ class FileUploadService(ServiceBase):
 
         next_bitmap_index = self._next_bitmap_index()
         # also mark new block in dir block
-        self._dir_block[self._dir_index: self._dir_index + 4] = struct.pack(
+        self._dir_block += struct.pack(
             ">I",
             next_bitmap_index,
         )
@@ -265,6 +263,7 @@ class FileUploadService(ServiceBase):
     ):
         # create root entry for file using data saved and calculated
         new_entry = RootEntry()
+        new_entry.mark_full()
         new_entry.iv_size = 16
         new_entry.iv = os.urandom(16)
         new_entry.set_encrypted(
@@ -288,16 +287,18 @@ class FileUploadService(ServiceBase):
                             "File %s too large" % request_context["file_name"])
         next_bitmap_index = self._next_bitmap_index()
         request_context["state"] = constants.SLEEPING
+        self._dir_block = util.random_pad(self._dir_block, constants.BLOCK_SIZE)
         block_util.bd_action(
             request_context=request_context,
             block_num=next_bitmap_index,
             action=constants.WRITE,
             block=self._dir_block,
         )
-        self._main_block[self._main_index: self._main_index + 4] = struct.pack(
+        self._main_block += struct.pack(
             ">I",
             next_bitmap_index,
         )
+        self._main_block = util.random_pad(self._main_block, constants.BLOCK_SIZE)
         block_util.bd_action(
             request_context=request_context,
             block_num=self._main_block_num,
@@ -384,7 +385,7 @@ class FileUploadService(ServiceBase):
     def _next_bitmap_index(
         self,
     ):
-        index = self._bitmaps + self._dir_roots + 1
+        index = 0
         while index < len(self._bitmap * 8):
             if integration_util.bitmap_get_bit(
                 self._bitmap,

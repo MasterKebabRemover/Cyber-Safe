@@ -61,6 +61,7 @@ class Download(ServiceBase):
                     user_key=encryption_util.sha(self._authorization)[:16],
                 )
                 request_context["headers"][constants.CONTENT_LENGTH] = encrypted["file_size"]
+                self._file_size = encrypted["file_size"] # save for later use
                 break
         if main_num is None:
             raise HTTPError(
@@ -104,6 +105,8 @@ class Download(ServiceBase):
             block=request_context["block"],
             aes=aes,
         )
+        request_context["block"] = request_context["block"][:self._file_size] # cut padding files
+        self._file_size -= len(request_context["block"])
         # send block to user
         request_context["response"] = request_context["block"]
         request_context["block"] = ""
@@ -130,8 +133,6 @@ class Download(ServiceBase):
             self._main_block[self._main_index: self._main_index + 4]
         )[0]
         self._main_index += 4
-        if current_block_num == 0:
-            return None
         block_util.bd_action(
             request_context=request_context,
             block_num=current_block_num,
@@ -144,22 +145,17 @@ class Download(ServiceBase):
         self,
         request_context,
     ):
-        if self._main_index >= constants.BLOCK_SIZE:
-            return None
+        if self._file_size == 0:
+            return None # finished if entire file sent
         if self._dir_block is None or self._dir_index >= len(self._dir_block):
             # get next dir_block
-            if not self._next_dir_block(request_context):
-                return None
+            self._next_dir_block(request_context)
             return constants.RETURN_AND_WAIT
         else:
             current_block_num = struct.unpack(
                 ">I",
                 self._dir_block[self._dir_index: self._dir_index + 4],
             )[0]
-            if current_block_num == 0:
-                if not self._next_dir_block(request_context):
-                    return None
-                return constants.RETURN_AND_WAIT
             block_util.bd_action(
                 request_context=request_context,
                 block_num=current_block_num,

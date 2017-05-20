@@ -1,11 +1,13 @@
 #!/usr/bin/python
 import logging
+import os
 import struct
 import urlparse
 
 from common.utilities import block_util
 from common import constants
 from common.utilities import util
+from common.utilities import integration_util
 from common.services.service_base import ServiceBase
 
 class InitService(ServiceBase):
@@ -51,10 +53,25 @@ class InitService(ServiceBase):
             action=constants.WRITE,
             block=init_block,
         )
-        for i in range(bitmaps):
+
+        first_bitmap = bytearray(4096) # update first bitmap to include full blocks for bitmaps and roots
+        index = 0
+        blocks_to_fill = bitmaps + dir_roots + 1 # 1 is for init_block
+        while blocks_to_fill:
+            integration_util.bitmap_set_bit(first_bitmap, index,1)
+            index += 1
+            blocks_to_fill -= 1
+        block_util.bd_action(
+                request_context=request_context,
+                block_num=1,
+                action=constants.WRITE,
+                block=first_bitmap,
+            )
+            
+        for i in range(bitmaps - 1):
             block_util.bd_action(
                 request_context=request_context,
-                block_num=i+1,
+                block_num=i+2,
                 action=constants.WRITE,
                 block=bytearray(4096),
             )
@@ -63,7 +80,8 @@ class InitService(ServiceBase):
                 request_context=request_context,
                 block_num=bitmaps+i+1,
                 action=constants.WRITE,
-                block=bytearray(4096),
+                block= bytearray(1) + os.urandom(
+                    constants.BLOCK_SIZE - 1),
             )
 
     def before_response_headers(

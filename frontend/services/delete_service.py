@@ -33,7 +33,7 @@ class DeleteService(ServiceBase):
         if not qs.get("filename"):
             request_context["headers"][constants.CONTENT_TYPE] = "text/html"
             raise util.HTTPError(500, "Internal Error", util.text_to_css(
-                "Filen name missing", error=True))
+                "File name missing", error=True))
         request_context["filename"] = str(qs["filename"][0])
         self._parse_core(
             request_context,
@@ -54,13 +54,15 @@ class DeleteService(ServiceBase):
             entry.load_entry(
                 self._root[index: index + constants.ROOT_ENTRY_SIZE]
             )
+            index += constants.ROOT_ENTRY_SIZE
+            if entry.is_empty():
+                continue
             if entry.compare_sha(
                 user_key=encryption_util.sha(self._authorization)[:16],
                 file_name=request_context["filename"]
             ):
                 dir_num = entry.main_block_num
                 break
-            index += constants.ROOT_ENTRY_SIZE
         if dir_num is None:
             raise util.HTTPError(500, "Internal Error", util.text_to_css(
                 "file %s not found" % request_context["filename"], error=True))
@@ -72,7 +74,13 @@ class DeleteService(ServiceBase):
             dir_num,
             0
         )
-        self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(RootEntry())
+        entry.mark_empty() # mark entry as empty
+        encrypted = entry.get_encrypted(
+            user_key=encryption_util.sha(self._authorization)[:16],
+        )
+        self._file_size = encrypted["file_size"] # get file size for later use
+
+        self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(entry) # update directory root
         block_util.bd_action(
             request_context=request_context,
             block_num=dir_num,
@@ -89,11 +97,15 @@ class DeleteService(ServiceBase):
         # go over main_block and turn off all corresponding bits in bitmap
         self._dir_block_list = []
         index = 0
+        real_blocks = (self._file_size / (constants.BLOCK_SIZE**2)) + 1 # number of actual file blocks to delete
         while index < len(self._main_block):
+            if index >= real_blocks: # means that we started deleting fake blocks
+                break
             block_num = struct.unpack(
                 ">I", self._main_block[index:index + 4])[0]
             if block_num == 0:
                 break
+            logging.debug(block_num)
             self._bitmap = integration_util.bitmap_set_bit(
                 self._bitmap,
                 block_num,
@@ -132,8 +144,11 @@ class DeleteService(ServiceBase):
         request_context,
     ):
         # go over dir_block and turn off all data bits in bitmap
+        real_blocks = (self._file_size / constants.BLOCK_SIZE) + 1 # marks actual file blocks to delete
         index = 0
         while index < len(self._dir_block):
+            if index >= real_blocks: # means that we started deleting fake blocks
+                break
             block_num = struct.unpack(
                 ">I", self._dir_block[index:index + 4])[0]
             if block_num == 0:

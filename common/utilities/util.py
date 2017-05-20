@@ -183,11 +183,9 @@ def add_status(entry, code, extra):
         )
         ).encode("utf-8")
 
-
-def ljust_00(data, length):
+def random_pad(data, length):
     b = bytearray(data)
-    while len(b) < length:
-        b += chr(0)
+    b += os.urandom(length - len(b))
     return b
 
 

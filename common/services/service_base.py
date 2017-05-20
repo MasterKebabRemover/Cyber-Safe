@@ -130,7 +130,7 @@ class ServiceBase(object):
     ):
         init = bytearray(request_context["block"])
         if init[:len(constants.INIT_SIGNATURE)] != constants.INIT_SIGNATURE:
-            raise util.HTTPError(500, "Internal Error", "Disk not initialized")
+            raise util.HTTPError(500, "Internal Error", util.text_to_css("Disk not initialized", error=True))
         index = len(constants.INIT_SIGNATURE)
         self._bitmaps = struct.unpack(">B", init[index:index+1])[0]
         self._dir_roots = struct.unpack(">B", init[index+1:index+2])[0]
