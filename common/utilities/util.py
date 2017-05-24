@@ -1,3 +1,7 @@
+## @package cyber-safe.common.utilities.util
+#
+# Various utility functions and classes.
+#
 import Cookie
 import errno
 import random
@@ -16,7 +20,9 @@ STATUS_CODES = {
     500: "Internal Error",
 }
 
-
+## HTTP Error class.
+# Error class to rise when something goes wrong with HTTP.
+#
 class HTTPError(RuntimeError):
     def __init__(
         self,
@@ -29,7 +35,9 @@ class HTTPError(RuntimeError):
         self.status = status
         self.message = message
 
-
+## FD Open class.
+# Allowes using python "with" function when reading from file descriptors.
+#
 class FDOpen(object):
     def __init__(
         self,
@@ -61,18 +69,18 @@ class FDOpen(object):
         if self._fd:
             os.close(self._fd)
 
-
-class Disconnect(RuntimeError):
-    def __init__(self, desc="Disconnect"):
-        super(Disconnect, self).__init__(desc)
-
-
+## Text to html convert.
+# @param text (str) text.
+# @returns (str) html format text.
 def text_to_html(
     text,
 ):
     return ("<HTML>\r\n<BODY>\r\n%s\r\n</BODY>\r\n</HTML>" % text)
 
-
+## Text to css convert.
+# @param text (str) text.
+# @param error (bool) whether to color text as error.
+# @returns (str) css format text.
 def text_to_css(
     text,
     error=False,
@@ -83,14 +91,10 @@ def text_to_css(
         constants.BACK_TO_MENU
     )
 
-
-def random_cookie():
-    result = ""
-    for i in range(0, 64):
-        result += str(random.randint(0, 255))
-    return result
-
-
+## Cookie parsing.
+# @param string (str) string to parse cookie from.
+# @param cookie (str) cookie name.
+# @returns (str) value of cookie from stirng, if exists.
 def parse_cookies(string, cookie):
     if string is None:
         return None
@@ -100,7 +104,9 @@ def parse_cookies(string, cookie):
         return None
     return c.get(cookie).value
 
-
+## Parse header.
+# @param line (str) line.
+# @returns (tuple) line splitted to header name and header value, if line is legal header format.
 def parse_header(line):
     SEP = ':'
     n = line.find(SEP)
@@ -108,7 +114,9 @@ def parse_header(line):
         raise RuntimeError('Invalid header received')
     return line[:n].rstrip(), line[n + len(SEP):].lstrip()
 
-
+## Receive line.
+# @param buffer (str) buffer.
+# @returns (tuple) first line parsed from buffer and rest of the buffer.
 def recv_line(
     buffer
 ):
@@ -120,7 +128,13 @@ def recv_line(
     buffer = buffer[n + len(constants.CRLF_BIN):]
     return result, buffer
 
-
+## Get headers.
+# @param request_context (dict) request context.
+# @return (bool) whether finished parsing.
+#
+# function is used by some HTTP objects to turn received data buffer into dictionary
+# containing wanted headers and their values.
+#
 def get_headers(
     request_context,
 ):
@@ -128,9 +142,9 @@ def get_headers(
     for i in range(constants.MAX_NUMBER_OF_HEADERS):
         line, request_context["recv_buffer"] = recv_line(
             request_context["recv_buffer"])
-        if line is None:  # means that async server has yet to receive all headers
+        if line is None:
             break
-        if line == "":  # this is the end of headers
+        if line == "":
             finished = True
             break
         line = parse_header(line)
@@ -140,7 +154,13 @@ def get_headers(
         raise RuntimeError("Exceeded max number of headers")
     return finished
 
-
+## Send headers.
+# @param request_context (dict) request context.
+# @returns (bool) true.
+#
+# Used by some HTTP objects to convert dictionary of header names and values from request context to
+# string buffer that is later sent in HTTP communication.
+#
 def send_headers(
     request_context,
 ):
@@ -151,7 +171,11 @@ def send_headers(
     request_context["send_buffer"] += ("\r\n")
     return True
 
-
+## Receive buffer
+# @param entry (Pollable) entry.
+#
+# receives data from entry socket and puts it in entry receive buffer for later use.
+#
 def receive_buffer(entry):
     free_buffer_size = constants.BLOCK_SIZE - len(
         entry.request_context["recv_buffer"]
@@ -168,7 +192,13 @@ def receive_buffer(entry):
         if e.errno not in (errno.EAGAIN, errno.EWOULDBLOCK):
             raise
 
-
+## Add status.
+# @param entry (Pollable) entry.
+# @param code (int) status code).
+# @param extra (str) extra information about status.
+#
+# adds a status line to entry send buffer according to received status code.
+#
 def add_status(entry, code, extra):
     if not entry.request_context.get("status_sent"):
         entry.request_context["code"] = code
@@ -183,6 +213,11 @@ def add_status(entry, code, extra):
         )
         ).encode("utf-8")
 
+## Random pad function.
+# @param data (str) data to pad.
+# @param length (int) length to pad for.
+# @returns (int) data padded until length with random bytes.
+#
 def random_pad(data, length):
     b = bytearray(data)
     b += os.urandom(length - len(b))

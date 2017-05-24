@@ -6,6 +6,7 @@ import urlparse
 
 from common.utilities import block_util
 from common import constants
+from common.root_entry import RootEntry
 from common.utilities import util
 from common.utilities import integration_util
 from common.services.service_base import ServiceBase
@@ -81,9 +82,20 @@ class InitService(ServiceBase):
                 request_context=request_context,
                 block_num=bitmaps+i+1,
                 action=constants.WRITE,
-                block= bytearray(1) + os.urandom(
-                    constants.BLOCK_SIZE - 1),
+                block= self.random_root_block(),
             )
+
+    def random_root_block(self):
+        block = bytearray(os.urandom(constants.BLOCK_SIZE))
+        index = 0
+        while index < len(block):
+            entry = RootEntry()
+            entry.load_entry(block[index: index + constants.ROOT_ENTRY_SIZE])
+            entry.mark_empty()
+            block[index: index + constants.ROOT_ENTRY_SIZE] = str(entry)
+            index += constants.ROOT_ENTRY_SIZE
+        return block
+            
 
     def before_response_headers(
         self,

@@ -1,3 +1,9 @@
+## @package cyber-safe.common.utilities.userpass_encryption_tool
+#
+# A simple tool, independent of program main.
+# Used by input of username, password and salt.
+# returns value of hashed username and password to set in block device config files.
+#
 import base64
 import hashlib
 import hmac

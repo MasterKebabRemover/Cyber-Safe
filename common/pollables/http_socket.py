@@ -1,4 +1,5 @@
-
+## @package cyber-safe.common.pollables.http_socket
+# Class which handles HTTP state machine and server actions.
 import errno
 import socket
 import logging
@@ -12,7 +13,17 @@ from common.services import service_base
 from common.pollables.pollable import Pollable
 from common.pollables.collable import Collable
 
+## HTTP Socket.
+# pollable and callable class.
+# handles HTTP server with state machine for request process.
 class HttpSocket(Pollable, Collable):
+
+    ## Constructor.
+    # @param socket (socket) socket.
+    # @param state (int) self operation state.
+    # @param app_context (dict) application context.
+    # @param fd_dict (dict) dictionary of file descriptors.
+    # @param service_class (class) class of self HTTP service.
     def __init__(
         self,
         socket,
@@ -43,8 +54,9 @@ class HttpSocket(Pollable, Collable):
 
         self._state_machine = self._get_state_machine()
         self._current_state = constants.GET_FIRST_LINE
-        # logging.debug("%d is making our state %d" % (hash(self), self._current_state))
 
+    ## Return own state machine.
+    # state machine contains all http states and their corresponding functions.
     def _get_state_machine(
         self,
     ):
@@ -79,12 +91,13 @@ class HttpSocket(Pollable, Collable):
             },
         }
 
+    ## On read.
+    # called when there's data ready to be received, reads that data to own request context.
     def on_read(
         self,
     ):
         try:
             util.receive_buffer(self)
-            # logging.debug(self.request_context["recv_buffer"])
         except Exception as e:
             code = 500
             if isinstance(e, util.HTTPError):
@@ -93,12 +106,15 @@ class HttpSocket(Pollable, Collable):
             self.on_error()
             util.add_status(self, code, e)
 
+    ## On idle.
+    # @returns (bool) whether to call this function again or whether finished idle processes.
+    # called by asynchronous loop to perform various idle operations in self service.
+    # from this functon, the current state machine function is called.
     def on_idle(
         self,
     ):
         call_again = None
         try:
-            # logging.debug("%d is at state %d" % (hash(self), self._current_state))
             call_again = self._state_machine[self._current_state]["func"]()
         except Exception as e:
             code = 500
@@ -113,34 +129,46 @@ class HttpSocket(Pollable, Collable):
             call_again = True
         return call_again
 
+    # On write.
+    # called by asynchronous server when there's data ready to be written.
+    # writes ready data from own request context to socket.
     def on_write(
         self,
     ):
         try:
             while self.request_context["send_buffer"]:
-                # logging.debug(self.request_context["send_buffer"])
                 self.request_context["send_buffer"] = self.request_context["send_buffer"][
                     self.socket.send(self.request_context["send_buffer"]):
                 ]
         except socket.error as e:
             if e.errno == errno.EPIPE:
-                self.request_context["send_buffer"] = ""  # to stop sending
+                self.request_context["send_buffer"] = ""
         except Exception as e:
             traceback.print_exc()
             self.on_error
             self.service_class = service_base.ServiceBase(self.request_context)
 
+    # On error.
+    # called when error rises, sets own state to closing.
     def on_error(
         self,
     ):
         self.request_context["state"] = constants.CLOSING
 
+    # On close.
+    # called when ready to close, closes own socket.
     def on_close(
         self,
     ):
         self.socket.shutdown(socket.SHUT_WR)
         pass
 
+    # On finish.
+    # @param block (int) block of data received.
+    # @param error (str) error occured during sleep time.
+    #
+    # Called by own client to wake up the HTTP socket after client finished it's work.
+    #
     def on_finish(
         self,
         block="",
@@ -148,7 +176,6 @@ class HttpSocket(Pollable, Collable):
     ):
         self.request_context["state"] = constants.ACTIVE
         self.request_context["block"] = block
-        # logging.debug("BLOCK %s" % block)
         try:
             if error:
                 raise RuntimeError(str(error))
@@ -169,16 +196,17 @@ class HttpSocket(Pollable, Collable):
     def fileno(self):
         return self.socket.fileno()
 
+    ## Get first line.
+    # function called when on HTTP receive status line state.
+    # parses status line and creates matching service to handle rest of the request.
     def _get_first_line(
         self,
     ):
         req, self.request_context["recv_buffer"] = util.recv_line(
             self.request_context["recv_buffer"])
-        if not req:  # means that async server has yet to receive a full line
+        if not req:
             return False
         req_comps = req.split(" ", 2)
-        # logging.debug(req)
-        # logging.debug(req_comps)
         if len(req_comps) != 3:
             raise RuntimeError("Incomplete HTTP protocol")
         if req_comps[2] != constants.HTTP_SIGNATURE:
@@ -214,6 +242,10 @@ class HttpSocket(Pollable, Collable):
         self.request_context["req_headers"] = self.service_class.get_header_dict(
         )
 
+    ## Get headers.
+    # function called when on HTTP get headers state.
+    # uses util to get all headers, moves to next state when done.
+    # returns false if not done receiving but no remaining buffer.
     def _get_headers(
         self,
     ):
@@ -227,6 +259,10 @@ class HttpSocket(Pollable, Collable):
         else:
             return False
 
+    ## Get content.
+    # called when on HTTP get content state.
+    # receives available content, then passes it to service to operate.
+    # according to command received from service, switches to next state or returns to wait for more data.
     def _get_content(
         self,
     ):
@@ -244,6 +280,9 @@ class HttpSocket(Pollable, Collable):
         elif service_command is False:
             return False
 
+    ## Send status line.
+    # called when on HTTP send status line state.
+    # sends status line according to data in request context.
     def _send_status_line(
         self,
     ):
@@ -259,6 +298,9 @@ class HttpSocket(Pollable, Collable):
         self.service_class.before_response_headers(self.request_context)
         self._current_state = self._state_machine[self._current_state]["next"]
 
+    ## Send headers.
+    # called when in HTTP send headers state.
+    # uses util to send all pending headers, switches to next state when done sending.
     def _send_headers(
         self,
     ):
@@ -266,6 +308,11 @@ class HttpSocket(Pollable, Collable):
             self._current_state = self._state_machine[self._current_state]["next"]
         self.service_class.before_response_content(self.request_context)
 
+    ## Send response.
+    # called when in HTTP response state.
+    # calls service reponse send function.
+    # according to command received from service, either switches to next state, calls service again or
+    # returns to asynchronous poller to sleep and wait for client actions.
     def _send_response(
         self,
     ):
@@ -286,18 +333,11 @@ class HttpSocket(Pollable, Collable):
         elif service_command == constants.CALL_SERVICE_AGAIN:
             return True
 
+    ## Terminate.
+    # sets self state to closing.
     def _terminate(
         self,
     ):
         self.service_class.before_terminate(self.request_context)
         self.request_context["state"] = constants.CLOSING
         return False
-
-    def _reset_request_context(
-        self,
-    ):
-        self.request_context["code"] = 200
-        self.request_context["status"] = "OK"
-        self.request_context["req_headers"] = {}
-        self.request_context["response"] = ""
-        self.request_context["headers"] = {}

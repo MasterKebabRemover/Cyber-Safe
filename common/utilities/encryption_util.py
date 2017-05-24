@@ -1,3 +1,7 @@
+## @package cyber-safe.common.utilities.encryption_util
+#
+# Various encryption related utilities.
+#
 import base64
 import hashlib
 import struct
@@ -6,13 +10,21 @@ import hmac
 
 import pyaes
 
-
-def get_aes(  # creates an aes object with iv that matches block_num
+## Create AES encryption object
+# @param key (str) encryption key.
+# @param ivkey (str) encryption iv generation key.
+# @param block_num (int) block number for iv generation.
+# @returns (pyaes.AESModeOfOperationCBC) encryption object.
+#
+# uses external pyaes module to generate an AES encryption object.
+# object encryption key is given as parameter.
+# object initial vector generated from given iv_key and depends on current block number.
+#
+def get_aes(
     key,
     ivkey,
     block_num=None,
 ):
-    # hash key and ivkey to match aes length
     sha = hashlib.sha1()
     sha.update(key)
     key = sha.digest()[:16]
@@ -24,6 +36,10 @@ def get_aes(  # creates an aes object with iv that matches block_num
 
     return pyaes.AESModeOfOperationCBC(key, iv=iv)
 
+## Encrypt block using AES.
+# @param aes (pyaes.AESModeOfOperationCBC) encryption object.
+# @param block (str) block to encrypt.
+# @returns (str) encrypted block.
 
 def encrypt_block_aes(
     aes,
@@ -44,7 +60,10 @@ def encrypt_block_aes(
         index += 16
     return result
 
-
+## Decrypt block using AES.
+# @param aes (pyaes.AESModeOfOperationCBC) encryption object.
+# @param block (str) block to encrypt.
+# @returns (str) decrypted block.
 def decrypt_block_aes(
     aes,
     block,
@@ -64,14 +83,21 @@ def decrypt_block_aes(
         index += 16
     return result
 
-
+## Sha1 hash algorithm.
+# @param data (str) data to digest
+# @param *more_data (list) more data to digest.
+# @returns (str) sha1 digested data.
 def sha(data, *more_data):
     h = hmac.new(data, digestmod=hashlib.sha1)
     for i in more_data:
         h.update(i)
     return h.digest()
 
-
+##  AES encryption.
+# @param key (str) encryption key.
+# @param iv (str) encryption iv.
+# @param data (str) data to encrypt.
+# @returns (str) data encrypted by AES key and iv.
 def aes_encrypt(
     key,
     iv,
@@ -83,7 +109,11 @@ def aes_encrypt(
     result += aes.feed()
     return result
 
-
+##  AES decryption.
+# @param key (str) decryption key.
+# @param iv (str) decryption iv.
+# @param data (str) data to decrypt.
+# @returns (str) data decrypted by AES key and iv.
 def aes_decrypt(
     key,
     iv,
@@ -95,7 +125,13 @@ def aes_decrypt(
     result += aes.feed()
     return result
 
-
+## Basic authentication check.
+# @param request_context (dict) request context.
+# @returns (bool) whether authentication was successful.
+#
+# checks request_context for authentication header, compares received user and password to 
+# hash of user and password from self config file.
+#
 def check_login(request_context):
     successful_login = False
     if "Authorization" in request_context["req_headers"].keys():

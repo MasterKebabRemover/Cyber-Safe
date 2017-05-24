@@ -1,3 +1,5 @@
+## @package cyber-safe.common.pollables.pollable.
+# Base class of pollable objects with basic poll functions
 class Pollable(object):
     def on_read(self):
         return

@@ -1,7 +1,24 @@
+## @package cyber-safe.common.root_entry
+# Class of handling file entry in directory root block
+#
 from common.utilities import encryption_util
 import logging
 import os
 import struct
+
+## Indices of various fields in entry.
+# each index is it's field's starting index.
+# - allocated: Marks whether entry is empty or allocated.
+# - iv_size: Size of initial vector.
+# - iv: Initial vector for encryption of file size and name.
+# - file_size: File size.
+# - file_name_length: Length of file name.
+# - file_name: File name.
+# - main_block_num: Index of file main block on block device.
+# - blank: Bytes left blank for future use.
+# - random: A random integer.
+# - sha: Sha1 hash of file name and random.
+# - end: End index of entry.
 
 INDICES = {
     "allocated": 0, # marks whether entry is empty or not
@@ -9,8 +26,6 @@ INDICES = {
     "iv": 2,
     "file_size": 34,
     "file_name_length": 38,
-    # will be padded to 180 bytes with random, then encrypted to get 196 byte
-    # output
     "file_name": 39,
     "main_block_num": 226,
     "blank": 230,
@@ -19,23 +34,38 @@ INDICES = {
     "end": 256,
 }
 
-
-class RootEntry(object):  # class to cleanly handle root entry operations
+## Root entry.
+#
+# Loads an entry string representation and operates on it cleanly.
+#
+class RootEntry(object):
+    ## Constructor.
     def __init__(self):
         self._entry = bytearray(INDICES["end"])
 
+    ## String representation
+    # @returns (str) self bytes.
     def __str__(self):
         return str(self._entry)
 
-    def is_empty(self):  # check if entry is empty, if first byte is 0
+    ## Check if entry is empty.
+    # @returns (bool) false if full, true if empty.
+    def is_empty(self):
         return not self._entry[INDICES["allocated"]]
 
-    def load_entry(self, entry):  # load an entry of <end> bytes
+    ## Loads a new entry.
+    # @param entry (str) entry string bytes.
+    def load_entry(self, entry):
         if len(entry) != INDICES["end"]:
             raise RuntimeError('Invalid entry')
         self._entry = entry
 
-    def compare_sha(  # used for quick file ownership verification
+
+    ## Check ownership of entry with user key.
+    # @param file_name (str) file name.
+    # @param user_key (str) user key.
+    # @returns (bool) true if file name and user key match to those of the entry.
+    def compare_sha(
         self,
         file_name,
         user_key,
@@ -44,6 +74,13 @@ class RootEntry(object):  # class to cleanly handle root entry operations
             self.random, user_key, file_name)[
             :16] == self.sha
 
+    ## Update the encrypted part of the entry.
+    # @param user_key (str) key of encryption.
+    # @param file_size (int) file size to encrypt.
+    # @param file_name (str) file name to encrypt.
+    # 
+    # encrypts using AES and self initial vector.
+    #
     def set_encrypted(
         self,
         user_key,
@@ -64,6 +101,9 @@ class RootEntry(object):  # class to cleanly handle root entry operations
         )
         self._entry[INDICES["file_size"]:INDICES["main_block_num"]] = encrypted
 
+    ## Decrypts self encrypted part with given key.
+    # @param user_key (str) decryption key.
+    # @return (dict) file size and file name.
     def get_encrypted(
         self,
         user_key,
@@ -81,9 +121,11 @@ class RootEntry(object):  # class to cleanly handle root entry operations
             "file_name": file_name,
         }
 
+    ## Mark self as full.
     def mark_full(self):
         self._entry[INDICES["allocated"]: INDICES["iv_size"]] = chr(1)    
 
+    ## Mark self as empty.
     def mark_empty(self):
         self._entry[INDICES["allocated"]: INDICES["iv_size"]] = chr(0)    
 
@@ -127,7 +169,7 @@ class RootEntry(object):  # class to cleanly handle root entry operations
         )
 
     @property
-    def random(self):  # random is byte string, not int
+    def random(self):
         return str(self._entry[INDICES["random"]:INDICES["sha"]])
 
     @random.setter

@@ -1,4 +1,5 @@
-
+## @package cyber-safe.common.services.service_base
+# Base class for all services.
 import Cookie
 import logging
 import struct
@@ -9,42 +10,51 @@ from common.utilities import block_util
 from common import constants
 from common.utilities import util
 
-
+## Service Base class
+# contains elementary functions for services to inherit and change.
+# also conatains useful utilities.
 class ServiceBase(object):
+    ## Service name
     @staticmethod
     def name():
         return None
 
+    ## Constructor.
     def __init__(
         self,
         request_context=None,
     ):
         pass
 
+    ## Function called before receiving HTTP headers.
     def before_request_headers(
         self,
         request_context,
     ):
         pass
 
+    ## Function called before receiving HTTP content.
     def before_request_content(
         self,
         request_context,
     ):
         pass
 
+    ## Function called during receiving HTTP content.
     def handle_content(
         self,
         request_context,
     ):
         pass
 
+    ## Function called before sending HTTP status.
     def before_response_status(
         self,
         request_context,
     ):
         pass
 
+    ## Function called before sending HTTP headers.
     def before_response_headers(
         self,
         request_context,
@@ -54,24 +64,29 @@ class ServiceBase(object):
                 request_context["response"]
             )
 
+    ## Function called before sending HTTP content.
     def before_response_content(
         self,
         request_context,
     ):
         pass
 
+    ## Function called during sending HTTP content.
     def response(
         self,
         request_context,
     ):
         pass
 
+    ## Function called before termination.
     def before_terminate(
         self,
         request_context,
     ):
         pass
 
+    ## Get header dictionary.
+    # @returns (dict) dictionary of wanted headers to parse.
     def get_header_dict(
         self,
     ):
@@ -80,12 +95,14 @@ class ServiceBase(object):
             "Cookie": None,
         }
 
+    ## Get user authorization
+    # @returns (str) user authorization string.
+    # checks query string and cookie headers for user authorization.
+    # if found, return values. if not found, raise error.
     def get_authorization(
         self,
         request_context,
     ):
-        # check query and cookie headers. if neither exist, raise error. if any
-        # exists, put it in request_context and return it.
         authorization = None
         qs = urlparse.parse_qs(request_context["parsed"].query)
         authorization = qs.get('password', [None, None])[0]
@@ -111,15 +128,14 @@ class ServiceBase(object):
             )
             raise util.HTTPError(307, "Temporary Redirect")
 
-    def bd_authorization( # checks whether request authorization matches data in config
-        self,
-        request_context,
-    ):
-        config = request_context["app_context"]["config"]
-        password_hash = config.get('blockdevice', 'password_hash')
-        salt = config.get('blockdevice', 'salt')
-
-    def _parse_core( # used to parse init block and get core parts: bitmap and directory root
+    ## Parse core block.
+    # @param request_context (dict) request context.
+    # @param wake_up_function (function) function to call on finish.
+    #
+    # initializes client to read first, core block of block devices.
+    # then wakes up next function to parse all bitmap and directory root blocks according to data found in core block.
+    #
+    def _parse_core(
         self,
         request_context,
         wake_up_function,
@@ -132,6 +148,10 @@ class ServiceBase(object):
             service_wake_up=self._after_init,
         )
 
+    ## After init block
+    #
+    # after receiving init, core block, starts reading all bitmaps into program.
+    #
     def _after_init(
         self,
         request_context,
@@ -151,6 +171,9 @@ class ServiceBase(object):
             service_wake_up=self._construct_bitmap,
         )
 
+    ## Construct bitmap.
+    # this function wakes up after receiving bitmap, and if it's not the last then requests next bitmap part.
+    # when entire bitmap construced, proceeds to wake up the directory root construction function.
     def _construct_bitmap(
         self,
         request_context,
@@ -174,6 +197,9 @@ class ServiceBase(object):
                 service_wake_up=self._construct_root,
             )
 
+    ## Construct directory root
+    # wakes up after receiving directory root part.
+    # if not last part, requests next part and constructs entire directory root.
     def _construct_root(
         self,
         request_context,

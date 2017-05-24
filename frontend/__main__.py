@@ -98,19 +98,19 @@ def __main__():
     Config = ConfigParser.ConfigParser()
     Config.read(constants.FRONTEND_CONFIG)
 
+
     devices = None
     bind_address = Config.get('frontend', 'bind.address')
     bind_port = Config.getint('frontend', 'bind.port')
-    devices = {
-        1: {
-            "address": Config.get('blockdevice.1', 'address'),
-            "port": Config.getint('blockdevice.1', 'port'),
-        },
-        2: {
-            "address": Config.get('blockdevice.2', 'address'),
-            "port": Config.getint('blockdevice.2', 'port'),
-        },
-    }
+    devices = {}
+    for i in Config.sections():
+        if Config.has_option(i, "bd_identifier"):
+            devices[i] = {
+                "address": Config.get(i, "address"),
+                "port": Config.getint(i, "port"),
+                "username": Config.get(i, "username"),
+                "password": Config.get(i, "password"),
+            }
     sparse = None
     admin = Config.get('frontend', 'admin.password')
 

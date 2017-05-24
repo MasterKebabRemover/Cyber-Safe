@@ -80,6 +80,7 @@ class DeleteService(ServiceBase):
         )
         self._file_size = encrypted["file_size"] # get file size for later use
 
+        index -= constants.ROOT_ENTRY_SIZE
         self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(entry) # update directory root
         block_util.bd_action(
             request_context=request_context,
