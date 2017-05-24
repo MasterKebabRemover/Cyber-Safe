@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import os
 import logging
 import struct
@@ -378,7 +378,7 @@ class FileUploadService(ServiceBase):
             {
                 constants.CONTENT_LENGTH: 0,
                 constants.CONTENT_TYPE: None,
-                constants.Cookie: None,
+                "Cookie": None,
             }
         )
 

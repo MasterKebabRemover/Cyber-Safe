@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import logging
 import struct
 
@@ -7,7 +7,6 @@ from common.utilities import util
 from common.services.service_base import ServiceBase
 from common.root_entry import RootEntry
 from common.utilities import encryption_util
-from common.utilities import block_util
 
 FORM_HEAD = """
     <head>

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import Cookie
 import logging
 import struct
@@ -77,7 +77,7 @@ class ServiceBase(object):
     ):
         return {
             constants.CONTENT_LENGTH: 0,
-            constants.Cookie: None,
+            "Cookie": None,
         }
 
     def get_authorization(
@@ -97,7 +97,7 @@ class ServiceBase(object):
             request_context["app_context"]["password_dict"][c["random"].value] = authorization
         else:
             random = util.parse_cookies(
-                request_context["req_headers"].get(constants.Cookie), "random")
+                request_context["req_headers"].get("Cookie"), "random")
             authorization = request_context["app_context"]["password_dict"].get(
                 random)
 
@@ -110,6 +110,14 @@ class ServiceBase(object):
                 request_context["app_context"]["bind_port"]
             )
             raise util.HTTPError(307, "Temporary Redirect")
+
+    def bd_authorization( # checks whether request authorization matches data in config
+        self,
+        request_context,
+    ):
+        config = request_context["app_context"]["config"]
+        password_hash = config.get('blockdevice', 'password_hash')
+        salt = config.get('blockdevice', 'salt')
 
     def _parse_core( # used to parse init block and get core parts: bitmap and directory root
         self,

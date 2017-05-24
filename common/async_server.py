@@ -1,4 +1,6 @@
-#!/usr/bin/python
+## @package cyber-safe.common.async_server
+# Server for handling asynchronous I/O.
+#
 import errno
 import logging
 import select
@@ -8,11 +10,21 @@ from common import constants
 from common.pollables import http_socket
 from common.pollables.tcp_listener import TCPListener
 
-
+## Asynchronous Server.
+#
+# Handles events of all participating sockets.
+#
 class Server(object):
+
+    ## Database of all participating sockets.
     _fd_dict = {}
+
+    ## Whether to terminate server.
     _terminate = False
 
+    ## Constructor.
+    # @param app_context (dict) application context
+    #
     def __init__(
         self,
         app_context,
@@ -21,6 +33,10 @@ class Server(object):
         self._timeout = app_context["timeout"]
         self._app_context = app_context
 
+    ## Add listener.
+    # create TCPListener object,
+    # add it to fd dictionary.
+    #
     def add_listener(
         self,
         bind_address,
@@ -36,42 +52,34 @@ class Server(object):
         )
         self._fd_dict[listener.fileno()] = listener
 
+    ## Stop server function.
     def stop(self, signum, frame):
         self._terminate = True
 
+    ## Unregister an entry.
+    # deletes entry from fd dict,
+    # raises close flag on entry,
+    # sets entry to closing state.
+    #
     def _unregister(self, entry):
         logging.debug("Unregistered fd %s\n", entry.fileno())
         del self._fd_dict[entry.fileno()]
         entry.on_close()
         entry.request_context["state"] = constants.CLOSING
 
-    def _get_new_connection(self, entry):
-        try:
-            client_entry = None
-            client, c_address = entry.socket.accept()
-            client_entry = http_socket.HttpSocket(
-                client,
-                constants.READING,
-                self._app_context,
-            )
-            client.setblocking(0)
-            logging.debug(
-                "new connection: %s",
-                client.fileno(),
-            )
-            self._fd_dict[client_entry.fileno()] = client_entry
-            self._event_object.register(client.fileno(), 0)
-        except Exception:
-            logging.error(traceback.format_exc())
-            if client_entry:
-                client_entry.socket.close()
-
+    ## Terminate the server.
+    # enters close state for all sockets in database.
+    #
     def terminate(self):
         logging.debug("Terminating")
         self._terminate = False
         for entry in self._fd_dict.values():
             entry.request_context["state"] = constants.CLOSING
 
+    ## Create a new poller object.
+    # @returns (dict) key - socket fd, value - event.
+    # for each entry, decide it's mask according to the state and register in poller object.
+    #
     def create_poller(self):
         poller = self._event_object()
         for entry in self._fd_dict.values():
@@ -96,6 +104,7 @@ class Server(object):
             )
         return poller
 
+    ## Main loop - running server.
     def run(self):
         logging.debug("HTTP server running")
         while self._fd_dict:
@@ -112,7 +121,6 @@ class Server(object):
 
                 for entry in self._fd_dict.values():
                     try:
-                        # logging.debug(entry)
                         while entry.request_context["state"] != constants.SLEEPING and entry.on_idle(
                         ):
                             pass

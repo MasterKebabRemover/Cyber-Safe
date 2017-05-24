@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import urlparse
 
 from common import constants

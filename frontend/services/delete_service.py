@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import logging
 import struct
 import urlparse

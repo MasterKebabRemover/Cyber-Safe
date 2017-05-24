@@ -1,25 +1,42 @@
-#!/usr/bin/python
+## @package cyber-safe.common.events_object
+# Asynchronous I/O event handler.
+#
 import select
 
-
+## Event base object.
 class EventBase(object):
+    ## Constructor.
     def __init__(self):
         pass
 
+    ## Returns class name.
     @staticmethod
     def name():
         return None
 
+    ## Registers a socket with a mask into the event object.
+    #
+    # @param fd (int) file descriptor of socket.
+    # @param mask (int) event mask of socket.
+    #
     def register(self, fd, mask):
         pass
 
+    ## Unregisters a socket from the event object
     def unregister(self, fd):
         pass
 
+    ## Returns the poll result of the event object
+    #   
+    #   @param timeout (int) poll timeout.
+    #
     def poll(self, timeout):
         raise NotImplementedError()
 
-
+## Poll events object.
+#
+# Uses select.poll() for event handling.
+#
 class PollEvents(EventBase):
     def __init__(self):
         super(PollEvents, self).__init__()
@@ -38,7 +55,10 @@ class PollEvents(EventBase):
     def poll(self, timeout):
         return self._poll_object.poll(timeout)
 
-
+## Select events object.
+#
+# Wraps the select functions to be used as poll functions, with same inputs and outputs.
+#
 class SelectEvents(EventBase):
     def __init__(self):
         self._fd_dict = {}

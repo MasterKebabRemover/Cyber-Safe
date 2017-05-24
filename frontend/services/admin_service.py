@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import logging
 
 from common import constants

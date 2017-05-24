@@ -1,4 +1,4 @@
-#!/usr/bin/python
+import base64
 import logging
 
 from common import constants
@@ -20,6 +20,15 @@ class BDClientWrite(ServiceBase):
             constants.HTTP_SIGNATURE
         )
         request_context["send_buffer"] += cmd
+        parent_context = request_context["parent"].request_context
+        request_context["headers"]["Authorization"] = "Basic %s" % (
+            base64.b64encode(
+                "%s:%s" % (
+                    parent_context["user_to_send"],
+                    parent_context["password_to_send"],
+                )
+            )
+        )
 
     def before_response_headers(
         self,

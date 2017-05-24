@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import os
 import urlparse
 
@@ -17,6 +17,8 @@ class BlockDeviceRead(ServiceBase):
         self,
         request_context,
     ):
+        if not encryption_util.check_login(request_context):
+            raise util.HTTPError(401, "Unathorized", "Bad block device authentication")
         sparse_size = os.stat(request_context["app_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
@@ -63,3 +65,10 @@ class BlockDeviceRead(ServiceBase):
 
             request_context["block"] = None
             request_context["response"] = data
+
+    def get_header_dict(
+        self,
+    ):
+        return {
+            constants.AUTHORIZATION: None,
+        }

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import struct
 import logging
@@ -93,3 +94,20 @@ def aes_decrypt(
     result += aes.feed(data)
     result += aes.feed()
     return result
+
+
+def check_login(request_context):
+    successful_login = False
+    if "Authorization" in request_context["req_headers"].keys():
+        auth_type, auth_content = request_context["req_headers"][
+            "Authorization"
+        ].split(" ", 2)
+        if auth_type == "Basic":
+            username, password = tuple(base64.b64decode(auth_content).split(':', 1))
+            config = request_context["app_context"]["config"]
+            salt = config.get('blockdevice', 'salt')
+            successful_login = (
+                sha(username, salt) == base64.b64decode(config.get('blockdevice', 'username_hash')) and
+                sha(password, salt) == base64.b64decode(config.get('blockdevice', 'password_hash'))
+            )
+    return successful_login

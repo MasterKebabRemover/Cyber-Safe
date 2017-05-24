@@ -187,9 +187,3 @@ def random_pad(data, length):
     b = bytearray(data)
     b += os.urandom(length - len(b))
     return b
-
-
-FILENAME_LENGTH = 56
-FILE_SIZE_LENGTH = 4
-MAIN_BLOCK_NUM = 4
-ROOT_ENTRY_SIZE = 64

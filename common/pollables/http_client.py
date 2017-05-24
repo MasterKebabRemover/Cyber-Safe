@@ -1,10 +1,11 @@
-#!/usr/bin/python
+
 import errno
 import socket
 import logging
 import traceback
 import importlib
 
+from client.services import *
 from common import constants
 from common.utilities import util
 from common.services import service_base
@@ -41,8 +42,6 @@ class HttpClient(Pollable):
         self.request_context["block_num"] = block_num
         self.request_context["parent"] = parent
         self.request_context["block"] = block
-        for service in constants.MODULE_DICT["client"]:
-            importlib.import_module(service)
 
         REGISTRY = {
             service.name(): service for service in service_base.ServiceBase.__subclasses__()

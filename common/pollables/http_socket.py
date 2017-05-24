@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import errno
 import socket
 import logging

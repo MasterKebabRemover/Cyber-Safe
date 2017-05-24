@@ -115,6 +115,9 @@ def init_client(
 ):
     from common.pollables.http_client import HttpClient
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    config = request_context["app_context"]["config"]
+    request_context["user_to_send"] = config.get("blockdevice.%d" % block_device_num, "username")
+    request_context["password_to_send"] = config.get("blockdevice.%d" % block_device_num, "password")
     client = HttpClient(
         socket=s,
         state=constants.ACTIVE,

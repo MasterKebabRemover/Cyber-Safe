@@ -16,3 +16,6 @@ class Pollable(object):
 
     def on_idle(self):
         return
+
+    def get_events(self):
+        return

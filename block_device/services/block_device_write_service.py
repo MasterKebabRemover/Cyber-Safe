@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import logging
 import os
 import urlparse
@@ -18,11 +18,11 @@ class BlockDeviceWrite(ServiceBase):
         self,
         request_context,
     ):
-        super(BlockDeviceWrite, self).before_request_content(request_context)
+        if not encryption_util.check_login(request_context):
+            raise util.HTTPError(401, "Unathorized", "Bad block device authentication")
         sparse_size = os.stat(request_context["app_context"]["sparse"]).st_size
         qs = urlparse.parse_qs(request_context["parsed"].query)
         block = int(qs['block'][0])
-        logging.debug(block)
         if block >= sparse_size / constants.BLOCK_SIZE:
             raise util.HTTPError(500, "Invalid block number")
         elif int(
@@ -67,3 +67,12 @@ class BlockDeviceWrite(ServiceBase):
             while self._data:
                 self._data = self._data[os.write(fd, self._data):]
         return None
+
+
+    def get_header_dict(
+        self,
+    ):
+        return {
+            constants.AUTHORIZATION: None,
+            constants.CONTENT_LENGTH: 0,
+        }

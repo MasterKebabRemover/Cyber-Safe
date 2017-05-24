@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 import logging
 import os
 import struct
@@ -28,6 +28,7 @@ class InitService(ServiceBase):
                 util.text_to_css("Admin password required to init disk"),
             )
 
+        # initialize disks
         qs = urlparse.parse_qs(request_context["parsed"].query)
         try:
             bitmaps, dir_roots = int(qs["bitmaps"][0]), int(qs["dir_roots"][0])
