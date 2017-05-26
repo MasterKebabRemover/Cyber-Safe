@@ -1,4 +1,7 @@
-
+## @package cyber-safe.frontend.services.file_upload_service.
+#
+# a service for uploading files to block device.
+#
 import os
 import logging
 import struct
@@ -14,12 +17,18 @@ from common.root_entry import RootEntry
 from common.services.service_base import ServiceBase
 from common.utilities import block_util
 
-
+## File upload service class.
 class FileUploadService(ServiceBase):
+    ## Class name function.
+    # @returns (str) class name.
     @staticmethod
     def name():
         return "/fileupload"
 
+    ## Constructor.
+    #
+    # initializes state machine and some variables.
+    #
     def __init__(
         self,
         request_context,
@@ -53,6 +62,11 @@ class FileUploadService(ServiceBase):
         self._bitmap = None
         self._root = None
 
+    ## Function called before receiving HTTP content
+    #
+    # gets user authorization, checks validity of content headers.
+    # gets multipart form boundary from headers.
+    #
     def before_request_content(
         self,
         request_context,
@@ -61,20 +75,40 @@ class FileUploadService(ServiceBase):
         super(FileUploadService, self).before_request_content(request_context)
         if request_context["req_headers"][constants.CONTENT_TYPE] is None:
             raise HTTPError(500, "Internal Error", "missing boundary header")
-        request_context["boundary"] = "--"
-        request_context["boundary"] += bytearray(
-            request_context["req_headers"][constants.CONTENT_TYPE].split(
+        boundary = request_context["req_headers"][constants.CONTENT_TYPE].split(
                 "boundary="
             )[1].encode("utf-8")
-        )
-        request_context["final_boundary"] = request_context["boundary"] + "--"
-        request_context["boundary"] += "\r\n"
-        request_context["final_boundary"] += "\r\n"
-        request_context["content_length"] -= 2  # for final boundary change
+        request_context["boundary"] = "--%s\r\n" % boundary
+        request_context["final_boundary"] = "--%s--\r\n" % boundary
+        request_context["content_length"] -= 2
 
         request_context["req_headers"]["Content-Disposition"] = None
         request_context["req_headers"]["Content-Type"] = None
 
+    ## Function called while receiving HTTP content.
+    #
+    # calls current state function, then reurns command to finish reading content state if no content left.
+    #
+    def handle_content(
+        self,
+        request_context,
+    ):
+        request_context["recv_buffer"] = request_context["recv_buffer"].replace(
+            request_context["final_boundary"], request_context["boundary"], )
+        while self._state_machine[self._current_state]["func"](
+            request_context,
+        ):
+            pass
+
+        if request_context["content_length"] <= 0:
+            return
+        return False
+
+    ## Function called when in multipart headers state.
+    #
+    # checks headers for requested ones, and if find requested header, saves it in dictionary for later use.
+    # moves to next state if receives last header.
+    #
     def _handle_headers(
         self,
         request_context,
@@ -83,7 +117,6 @@ class FileUploadService(ServiceBase):
             request_context["recv_buffer"])
         while line is not None:
             request_context["content_length"] -= len(line)
-            # for CRLF lost in util.recv_line
             request_context["content_length"] -= 2
             if (line + constants.CRLF) == str(request_context["boundary"]):
                 line, request_context["recv_buffer"] = util.recv_line(
@@ -101,6 +134,8 @@ class FileUploadService(ServiceBase):
         if len(request_context["recv_buffer"]) > constants.BLOCK_SIZE:
             raise RuntimeError("Maximum header size reached")
 
+    ## Function called in file initialization state.
+    # uses headers to get file name, then calls bitmap and directory root read from block device.
     def _init_file(
         self,
         request_context,
@@ -125,15 +160,17 @@ class FileUploadService(ServiceBase):
             self._after_root
         )
 
+    ## Function called after reading directory root.
+    # checks that no similar files exists (raises an error if there are).
+    # marks place in bitmap for main block of new file.
+    # creates an entry for new file in directory root.
+    # switches to next state.
     def _after_root(
         self,
         request_context,
     ):
-        # check that no files exist with same name
-        # find place in bitmap for main block of new file:
         self._main_block_num = self._next_bitmap_index()
 
-        # create entry for new file in dir root
         index = 0
         created = False
         while index < len(self._root):
@@ -142,7 +179,6 @@ class FileUploadService(ServiceBase):
                 self._root[index: index + constants.ROOT_ENTRY_SIZE])
             if entry.is_empty():
                 created = True
-                # save parameters to later create entry
                 request_context["main_block_num"] = self._main_block_num
                 request_context["dir_root_index"] = index
             elif entry.compare_sha(
@@ -155,7 +191,6 @@ class FileUploadService(ServiceBase):
             index += constants.ROOT_ENTRY_SIZE
         if not created:
             raise HTTPError(500, "Internal Error", "no room in disk")
-        # create main block for new file to later write to disk
         self._main_block = bytearray(0)
         self._dir_block = bytearray(0)
         self._main_index = 0
@@ -164,11 +199,17 @@ class FileUploadService(ServiceBase):
         request_context["file_size"] = 0
         self._current_state = self._state_machine[self._current_state]["next"]
 
+    ## Function called in write file state.
+    #
+    # checks read buffer for boundary.
+    # if not found, moves all content to pending to write buffer.
+    # when pending to write buffer reaches block size, writes block as file block to disk.
+    # if boundary found, pads content before the boundary to block size, then writes to disk, then switches to next state.
+    #
     def _write_file(
         self,
         request_context,
     ):
-        # iv length
         if len(request_context["buffer"]
                ) >= constants.BLOCK_SIZE - constants.IV_LENGTH:
             self._write_block(
@@ -205,18 +246,22 @@ class FileUploadService(ServiceBase):
             request_context["recv_buffer"] = request_context["recv_buffer"][index:]
             return True
 
+    ## Function for writing file block to disk.
+    # first checks if theres room left in directory block for more data block indices.
+    # if not, reads next directory block.
+    # if theres place for more data blocks, marks block bit in bitmap, then encrypts block with user key and random iv.
+    # saves random iv at the beginning of block for other services to be able to decrypt block.
+    # writes block to disk.
     def _write_block(
         self,
         request_context,
         block,
     ):
         if self._dir_index >= constants.BLOCK_SIZE:
-            # reached end of dir_block, write it and get new one
             if self._main_index >= constants.BLOCK_SIZE:
                 raise HTTPError(
                     500, "Internal Error", "File %s too large" %
                     request_context["file_name"])
-            # save block to write for future
             next_bitmap_index = self._next_bitmap_index()
             self._main_block += struct.pack(">I", next_bitmap_index, )
             self._main_index += 4
@@ -228,19 +273,15 @@ class FileUploadService(ServiceBase):
             )
             self._dir_block = bytearray(0)
             self._dir_index = 0
-            # get the data block back
 
         request_context["file_size"] += len(block)
 
         next_bitmap_index = self._next_bitmap_index()
-        # also mark new block in dir block
         self._dir_block += struct.pack(
             ">I",
             next_bitmap_index,
         )
         self._dir_index += 4
-        # encrypt data with user key and random iv. store iv in beginning of
-        # data. iv is 16 bytes.
         iv = os.urandom(16)
         key = encryption_util.sha(self._authorization)[:16]
         aes = pyaes.AESModeOfOperationCBC(key, iv=iv)
@@ -248,7 +289,6 @@ class FileUploadService(ServiceBase):
             block=block,
             aes=aes,
         )
-        # write data to new block
         request_context["state"] = constants.SLEEPING
         block_util.bd_action(
             request_context=request_context,
@@ -257,11 +297,14 @@ class FileUploadService(ServiceBase):
             block=block,
         )
 
+    ## Function called after end of file writing.
+    # writes new file entry to directory root.
+    # updates altered bitmaps, directory roots, main blocks, etc to disk.
+    # switches to next state.
     def _update_disk(
         self,
         request_context,
     ):
-        # create root entry for file using data saved and calculated
         new_entry = RootEntry()
         new_entry.mark_full()
         new_entry.iv_size = 16
@@ -281,7 +324,6 @@ class FileUploadService(ServiceBase):
         index = request_context["dir_root_index"]
         self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(new_entry)
 
-        # write last dir block and mark it in main block
         if self._main_index >= constants.BLOCK_SIZE:
             raise HTTPError(500, "Internal Error",
                             "File %s too large" % request_context["file_name"])
@@ -306,7 +348,6 @@ class FileUploadService(ServiceBase):
             block=self._main_block,
         )
 
-        # write bitmap and root
         self._current_bitmap = 1
         while self._bitmap:
             block = self._bitmap[:constants.BLOCK_SIZE]
@@ -336,30 +377,8 @@ class FileUploadService(ServiceBase):
         request_context["content_length"] -= len(request_context["boundary"])
         self._current_state = self._state_machine[self._current_state]["next"]
 
-    def handle_content(
-        self,
-        request_context,
-    ):
-        request_context["recv_buffer"] = request_context["recv_buffer"].replace(
-            request_context["final_boundary"], request_context["boundary"], )
-        # logging.debug("------------------------")
-        # logging.debug(self._current_state)
-        if request_context["state"] == constants.SLEEPING:
-            return False
-        while self._state_machine[self._current_state]["func"](
-            request_context,
-        ):
-            pass
-
-        if request_context["content_length"] <= 0:
-            return
-
-        # logging.debug(self._current_state)
-
-        if request_context["recv_buffer"][:-len(request_context["boundary"])]:
-            return True
-        return False
-
+    ## Function called before sending HTTP headers.
+    # sets success message and utility headers.
     def before_response_headers(
         self,
         request_context,
@@ -371,6 +390,8 @@ class FileUploadService(ServiceBase):
         request_context["headers"][constants.CONTENT_TYPE] = "text/html"
         super(FileUploadService, self).before_response_headers(request_context)
 
+    ## Get requested headers.
+    # @returns (dict) dictionary of headers needed by the service.
     def get_header_dict(
         self,
     ):
@@ -382,6 +403,11 @@ class FileUploadService(ServiceBase):
             }
         )
 
+    ## Find next free bitmap index.
+    #
+    # utility function to easily find next free index in disk through bitmap.
+    # sets new index to 1 to mark block as full, then returns the index.
+    #
     def _next_bitmap_index(
         self,
     ):

@@ -1,4 +1,7 @@
-
+## @package cyber-safe.frontend.services.get_file_service
+#
+# a service for sending regular files to browser.
+#
 import errno
 import logging
 import os
@@ -7,12 +10,19 @@ from common import constants
 from common.utilities import util
 from common.services.service_base import ServiceBase
 
-
+## Get file service class.
 class GetFileService(ServiceBase):
+    ## Class name function.
+    # @returns (str) class name.
     @staticmethod
     def name():
         return "*"
 
+    ## Function called before sending HTTP status.
+    #
+    # gets filename from query string, checks that this file is in base folder.
+    # if it is, opens the file and saves the file descriptor for later use.
+    #
     def before_response_status(
         self,
         request_context,
@@ -43,6 +53,9 @@ class GetFileService(ServiceBase):
 
         return True
 
+    ## Function called during HTTP content sending.
+    # uses previously saved file descriptor to read parts of the file and send them to client.
+    # stops when entire file is sent.
     def response(
         self,
         request_context,

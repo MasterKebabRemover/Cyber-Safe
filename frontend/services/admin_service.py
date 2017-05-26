@@ -1,15 +1,26 @@
-
+## @package cyber-safe.frontend.services.admin_service
+#
+# simple service for verifying admin authentication. 
+#
 import logging
 
 from common import constants
 from common.utilities import util
 from common.services.service_base import ServiceBase
 
+## Admin service class.
 class AdminService(ServiceBase):
+    ## Class name function.
+    # @returns (str) class name.
     @staticmethod
     def name():
         return "/admin"
 
+    ## Function called before receiving HTTP content.
+    #
+    # checks query authorization and compares it to admin data from app_context.
+    # if no match, redirects to error page. if match, redirects to admin control page.
+    #
     def before_request_content(
         self,
         request_context,

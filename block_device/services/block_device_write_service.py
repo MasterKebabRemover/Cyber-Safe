@@ -1,4 +1,7 @@
-
+## @package cyber-safe.block_device.services.block_device_write_service
+#
+# Block device service for handling block write requests.
+#
 import logging
 import os
 import urlparse
@@ -8,12 +11,20 @@ from common.utilities import util
 from common.services.service_base import ServiceBase
 from common.utilities import encryption_util
 
-
+## Block device write request handler class.
+# receives requests with block number and block from authorized client and writes given block to desired index.
 class BlockDeviceWrite(ServiceBase):
+    ## Service name function.
+    # @returns (str) service name.
     @staticmethod
     def name():
         return "/write"
 
+    ## Function called before receiving HTTP content.
+    #
+    # checks client authorization and parses block index from query string.
+    # also checks that block length and index parameters are valid and rises an error if not.
+    #
     def before_request_content(
         self,
         request_context,
@@ -33,10 +44,16 @@ class BlockDeviceWrite(ServiceBase):
             request_context["block"] = block
             self._data = bytearray(0)
 
+    ## Function called during receive of HTTP content.
+    #
+    # receives block content until the end.
+    # encrypts block with AES and block device key.
+    # writes encrypted block to disk.
+    #
     def handle_content(
         self,
         request_context,
-    ):  # first construct data, then write all at once
+    ):
         request_context["content_length"] -= len(
             request_context["recv_buffer"])
         self._data += request_context["recv_buffer"]
@@ -45,7 +62,6 @@ class BlockDeviceWrite(ServiceBase):
         if request_context["content_length"] > 0:
             return False
 
-        # now encrypt data by block device keys
         aes = encryption_util.get_aes(
             key=request_context["app_context"]["config"].get(
                 'blockdevice', 'key'),
@@ -69,6 +85,8 @@ class BlockDeviceWrite(ServiceBase):
         return None
 
 
+    ## Get header dictionary.
+    # @returns (dict) dictionary of wanted headers to parse.
     def get_header_dict(
         self,
     ):

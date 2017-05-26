@@ -1,15 +1,30 @@
+## @package cyber-safe.client.services.bd_client_write
+#
+# Client service for requesting block write to block device server
+#
 import base64
 import logging
 
 from common import constants
 from common.services.service_base import ServiceBase
 
-
+## Client write service class.
+#
+# requests block write to block device.
+#
 class BDClientWrite(ServiceBase):
+    ## Class name.
+    # @returns (str) name.
     @staticmethod
     def name():
         return constants.WRITE
 
+    ## Constructor.
+    # @param request_context (dict) request context.
+    #
+    # sets block write command with parameters provided from request context.
+    # sets headers to match authorization with block device server.
+    #
     def __init__(
         self,
         request_context,
@@ -30,12 +45,16 @@ class BDClientWrite(ServiceBase):
             )
         )
 
+    ## Function called before sending HTTP headers.
+    # sets proper content length header.
     def before_response_headers(
         self,
         request_context,
     ):
         request_context["headers"][constants.CONTENT_LENGTH] = constants.BLOCK_SIZE
 
+    ## Function called during sending HTTP content.
+    # sends to server the block provided by parent.
     def response(
         self,
         request_context,
@@ -47,12 +66,16 @@ class BDClientWrite(ServiceBase):
         else:
             return None
 
+    ## Function called before service termination
+    # wakes up parent with fullly received block.
     def before_terminate(
         self,
         request_context,
     ):
         request_context["parent"].on_finish()
 
+    ## Get header dictionary.
+    # @returns (dict) dictionary of wanted headers to parse.
     def get_header_dict(
         self,
     ):

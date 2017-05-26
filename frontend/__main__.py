@@ -1,4 +1,7 @@
 #!/usr/bin/python
+#!/usr/bin/python
+## @package cyber-safe.frontend.__main__
+# main program of frontend HTTP server.
 import argparse
 import ConfigParser
 import logging
@@ -13,7 +16,8 @@ from common import event_object
 from common.utilities import util
 from common.pollables.http_socket import HttpSocket
 
-
+## Daemon function.
+# when called, makes the program run in the background as a daemon process.
 def daemonize():
     os.closerange(3, resource.RLIMIT_NOFILE)
     os.chdir('/')
@@ -28,7 +32,9 @@ def daemonize():
         os.dup2(null, i)
     os.close(null)
 
-
+## Parse args function.
+# uses argparse module to parse arguments on server startup.
+# @returns (dict) arguments and their values.
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -78,20 +84,10 @@ def parse_args():
     args.base = os.path.normpath(os.path.realpath(args.base))
     return args
 
-
-def init_block_device(filename, filesize):
-    with util.FDOpen(
-        filename,
-        os.O_RDWR | os.O_CREAT,
-        0o666,
-    ) as sparse:
-        os.lseek(sparse, filesize, 0)
-        os.write(sparse, bytearray(constants.BLOCK_SIZE))
-        os.lseek(sparse, 0, 0)
-
-
+## Main function.
+# initializes all arguments and configurations into application context.
+# creates an asynchronous server with a listener and calls run() on it.
 def __main__():
-    # parse args
     args = parse_args()
     logging.basicConfig(filename=args.log_file, level=logging.DEBUG)
 
@@ -145,7 +141,6 @@ def __main__():
         "admin": admin,
         "base": args.base,
         "password_dict": {},
-        # for disk read/write control
         "semaphore": multiprocessing.BoundedSemaphore(constants.MAX_SEMAPHORE),
     }
 

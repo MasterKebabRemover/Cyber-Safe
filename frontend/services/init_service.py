@@ -1,4 +1,7 @@
-
+## @package cyber-safe.frontend.services.init_service
+#
+# a service only callable by system admin to initialize block devices.
+#
 import logging
 import os
 import struct
@@ -11,11 +14,22 @@ from common.utilities import util
 from common.utilities import integration_util
 from common.services.service_base import ServiceBase
 
+## initialization service class.
 class InitService(ServiceBase):
+    ## Class name function.
+    # @returns (str) class name.
     @staticmethod
     def name():
         return "/init"
 
+    ## Function called before sendin HTTP content.
+    #
+    # gets user authorization and raises an error if it doesn't match admin password.
+    # parses number of wanted bitmaps and directory roots from query string and makes sure it's valid.
+    # constructs the first block of device, which shows those numbers for future use and writes it to block device.
+    # for every bitmap and directory root to create, creates them and sends to block device.
+    # the first bitmap is created separately, since it's first bits should be on to mark the bitmaps and root indices.
+    #
     def before_request_content(
         self,
         request_context,
@@ -29,7 +43,6 @@ class InitService(ServiceBase):
                 util.text_to_css("Admin password required to init disk"),
             )
 
-        # initialize disks
         qs = urlparse.parse_qs(request_context["parsed"].query)
         try:
             bitmaps, dir_roots = int(qs["bitmaps"][0]), int(qs["dir_roots"][0])
@@ -56,9 +69,9 @@ class InitService(ServiceBase):
             block=init_block,
         )
 
-        first_bitmap = bytearray(4096) # update first bitmap to include full blocks for bitmaps and roots
+        first_bitmap = bytearray(4096)
         index = 0
-        blocks_to_fill = bitmaps + dir_roots + 1 # 1 is for init_block
+        blocks_to_fill = bitmaps + dir_roots + 1
         while blocks_to_fill:
             integration_util.bitmap_set_bit(first_bitmap, index,1)
             index += 1
@@ -85,6 +98,8 @@ class InitService(ServiceBase):
                 block= self.random_root_block(),
             )
 
+    ## Root directory block creation function.
+    # returns (str) randomly created directory root where all entries marked as empty.
     def random_root_block(self):
         block = bytearray(os.urandom(constants.BLOCK_SIZE))
         index = 0
@@ -97,6 +112,10 @@ class InitService(ServiceBase):
         return block
             
 
+    ## Function called before sending HTTP headers.
+    #
+    # sets success message.
+    #
     def before_response_headers(
         self,
         request_context,

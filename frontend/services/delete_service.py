@@ -1,4 +1,7 @@
-
+## @package cyber-safe.frontend.services.delete_service
+#
+# a service for deletion of files from safe.
+#
 import logging
 import struct
 import urlparse
@@ -11,12 +14,16 @@ from common.root_entry import RootEntry
 from common.utilities import integration_util
 from common.services.service_base import ServiceBase
 
-
+## Delete service class.
 class DeleteService(ServiceBase):
+    ## Class name function.
+    # @returns (str) class name.
     @staticmethod
     def name():
         return "/delete"
 
+    ## Constructor.
+    # initializes bitmap and root variables for future use.
     def __init__(
         self,
         request_context=None,
@@ -24,6 +31,11 @@ class DeleteService(ServiceBase):
         self._bitmap = None
         self._root = None
 
+    ## Function called before receiving HTTP content.
+    #
+    # checks validity of authorization and file name.
+    # calls to read bitmap and root from block device.
+    #
     def before_request_content(
         self,
         request_context,
@@ -40,13 +52,19 @@ class DeleteService(ServiceBase):
             self._after_root,
         )
 
+    ## Function called after receiving bitmap and directory root.
+    #
+    # searches root for file matching provided file name and user key.
+    # raises an error if file not found.
+    # if found, deletes the entry, turns off corresponding bits in bitmap.
+    # calls read file main block from block device.
+    #
     def _after_root(
         self,
         request_context,
     ):
         request_context["block"] = ""
 
-        # go over root and find file's entry, raise error if not found
         index = 0
         dir_num = None
         while index < len(self._root):
@@ -67,21 +85,19 @@ class DeleteService(ServiceBase):
             raise util.HTTPError(500, "Internal Error", util.text_to_css(
                 "file %s not found" % request_context["filename"], error=True))
 
-        # delete entry, turn off directory block bit in bitmap and request
-        # directory block
         self._bitmap = integration_util.bitmap_set_bit(
             self._bitmap,
             dir_num,
             0
         )
-        entry.mark_empty() # mark entry as empty
+        entry.mark_empty()
         encrypted = entry.get_encrypted(
             user_key=encryption_util.sha(self._authorization)[:16],
         )
-        self._file_size = encrypted["file_size"] # get file size for later use
+        self._file_size = encrypted["file_size"]
 
         index -= constants.ROOT_ENTRY_SIZE
-        self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(entry) # update directory root
+        self._root[index: index + constants.ROOT_ENTRY_SIZE] = str(entry)
         block_util.bd_action(
             request_context=request_context,
             block_num=dir_num,
@@ -89,18 +105,22 @@ class DeleteService(ServiceBase):
             service_wake_up=self._after_main_block,
         )
 
+    ## Function called after receiving main block.
+    #
+    # to turn off all file bits in bitmap, creates a list of all directory blocks to read.
+    # also turns of the bits relating to those blocks.
+    #
     def _after_main_block(
         self,
         request_context,
     ):
         (self._main_block, request_context["block"]) = (
             request_context["block"], "")
-        # go over main_block and turn off all corresponding bits in bitmap
         self._dir_block_list = []
         index = 0
-        real_blocks = (self._file_size / (constants.BLOCK_SIZE**2)) + 1 # number of actual file blocks to delete
+        real_blocks = (self._file_size / (constants.BLOCK_SIZE**2)) + 1
         while index < len(self._main_block):
-            if index >= real_blocks: # means that we started deleting fake blocks
+            if index >= real_blocks:
                 break
             block_num = struct.unpack(
                 ">I", self._main_block[index:index + 4])[0]
@@ -112,11 +132,12 @@ class DeleteService(ServiceBase):
                 block_num,
                 0,
             )
-            # save in order to go over all dir blocks
             self._dir_block_list.append(block_num)
             index += 4
         self._delete_dir_blocks(request_context)
 
+    ## Delete all file blocks through bitmap.
+    # reads all directory blocks and calls handle_dir_block for each.
     def _delete_dir_blocks(
         self,
         request_context,
@@ -132,23 +153,17 @@ class DeleteService(ServiceBase):
                 service_wake_up=self._handle_dir_block,
             )
 
+    ## Goes over the directory block, gets file block indices and turns of corresponding bits in bitmap.
     def _handle_dir_block(
         self,
         request_context,
     ):
         self._dir_block = request_context["block"]
         request_context["block"] = ""
-        self._delete_dir_block(request_context)
-
-    def _delete_dir_block(
-        self,
-        request_context,
-    ):
-        # go over dir_block and turn off all data bits in bitmap
-        real_blocks = (self._file_size / constants.BLOCK_SIZE) + 1 # marks actual file blocks to delete
+        real_blocks = (self._file_size / constants.BLOCK_SIZE) + 1
         index = 0
         while index < len(self._dir_block):
-            if index >= real_blocks: # means that we started deleting fake blocks
+            if index >= real_blocks:
                 break
             block_num = struct.unpack(
                 ">I", self._dir_block[index:index + 4])[0]
@@ -162,6 +177,10 @@ class DeleteService(ServiceBase):
             index += 4
         self._delete_dir_blocks(request_context)
 
+    ## Update disk
+    #
+    # writes all altered blocks to block devices.
+    #
     def _update_disk(
         self,
         request_context,
@@ -190,6 +209,8 @@ class DeleteService(ServiceBase):
             )
             self._current_root += 1
 
+    ## Function called before sending HTTP headers
+    # sends the success message to client.
     def before_response_headers(
         self,
         request_context,
