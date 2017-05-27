@@ -67,9 +67,10 @@ def read_block(
 
     else:
         request_context["replies"] += 1
-        request_context["read_block"] = integration_util.decrypt_data(
+        request_context["read_block"] = integration_util.decrypt_data([
             request_context["read_block"],
             request_context["block"],
+        ]
         )
         if request_context.get("replies") == len(
                 request_context["app_context"]["devices"]):
@@ -110,13 +111,13 @@ def write_block(
         block_num=request_context["block_num"],
     )
     block = encryption_util.encrypt_block_aes(aes, block)
-    block = integration_util.encrypt_data(block)
+    block_list = integration_util.encrypt_data(block, len(request_context["app_context"]["devices"]))
     for i in range(len(request_context["app_context"]["devices"])):
         init_client(
             request_context=request_context,
             client_action=constants.WRITE,
             client_block_num=request_context["block_num"],
-            block=block[i],
+            block=block_list[i],
             block_device_id=request_context["app_context"]["devices"].keys()[
                 i],
         )
@@ -166,5 +167,5 @@ def init_client(
     except Exception as e:
         if e.errno != errno.ECONNREFUSED:
             raise
-        raise HTTPError(500, "Internal Error", "Block Device not found")
+        raise util.HTTPError(500, "Internal Error", "Block Device not found")
     request_context["fd_dict"][client.fileno()] = client

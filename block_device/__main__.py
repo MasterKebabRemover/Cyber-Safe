@@ -48,11 +48,6 @@ def parse_args():
         help="Optional file to log into",
     )
     parser.add_argument(
-        "--base",
-        default=constants.BASE,
-        help="base location of files",
-    )
-    parser.add_argument(
         "--timeout",
         type=int,
         default=0,
@@ -74,7 +69,6 @@ def parse_args():
     )
 
     args = parser.parse_args()
-    args.base = os.path.normpath(os.path.realpath(args.base))
     return args
 
 ## Disk initialization function.
@@ -136,7 +130,6 @@ def __main__():
         "block_device": True,
         "config": Config,
         "admin": admin,
-        "base": args.base,
         "password_dict": {},
         "semaphore": multiprocessing.BoundedSemaphore(constants.MAX_SEMAPHORE),
     }

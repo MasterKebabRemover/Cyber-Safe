@@ -1,5 +1,4 @@
 #!/usr/bin/python
-#!/usr/bin/python
 ## @package cyber-safe.frontend.__main__
 # main program of frontend HTTP server.
 import argparse
@@ -72,12 +71,6 @@ def parse_args():
         ),
         choices=["select", "poll"],
         default="select" if os.name == "nt" else "poll"
-    )
-    parser.add_argument(
-        "--block-device",
-        action="store_true",
-        default=False,
-        help="whether this is a block device or frontend",
     )
 
     args = parser.parse_args()
