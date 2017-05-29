@@ -1,7 +1,7 @@
-## @package cyber-safe.common.utilities.util
+## @package common.utilities.util
 #
 # Various utility functions and classes.
-#
+## @file common/utilities/util.py Implementation of @ref common.utilities.util
 import Cookie
 import errno
 import random
@@ -183,7 +183,7 @@ def receive_buffer(entry):
     try:
         t = entry.socket.recv(free_buffer_size)
         if not t:
-            raise Disconnect(
+            raise RuntimeError(
                 'Disconnected while recieving content'
             )
         entry.request_context["recv_buffer"] += t

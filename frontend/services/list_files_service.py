@@ -1,7 +1,6 @@
-## @package cyber-safe.frontend.services.list_files_service
-#
+## @package frontend.services.list_files_service
 # a service to provide an HTML list with user's files on the disk.
-#
+## @file list_files_service.py Implementation of @ref frontend.services.list_files_service
 import logging
 import struct
 

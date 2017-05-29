@@ -1,7 +1,7 @@
-## @package cyber-safe.common.utilities.encryption_util
+## @package common.utilities.encryption_util
 #
 # Various encryption related utilities.
-#
+## @file encryption_util.py Implementation of @ref common.utilities.encryption_util
 import base64
 import hashlib
 import struct
@@ -141,7 +141,7 @@ def check_login(request_context):
         if auth_type == "Basic":
             username, password = tuple(base64.b64decode(auth_content).split(':', 1))
             config = request_context["app_context"]["config"]
-            salt = config.get('blockdevice', 'salt')
+            salt = base64.b64decode(config.get('blockdevice', 'salt'))
             successful_login = (
                 sha(username, salt) == base64.b64decode(config.get('blockdevice', 'username_hash')) and
                 sha(password, salt) == base64.b64decode(config.get('blockdevice', 'password_hash'))

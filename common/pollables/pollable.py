@@ -1,5 +1,6 @@
-## @package cyber-safe.common.pollables.pollable.
-# Base class of pollable objects with basic poll functions
+## @package common.pollables.pollable
+# Base class of pollable objects with basic poll functions.
+## @file pollable.py Implementation of @ref common.pollables.pollable
 class Pollable(object):
     def on_read(self):
         return

@@ -1,7 +1,8 @@
-## @package cyber-safe.block_device.services.block_device_read_service
+## @package block_device.services.block_device_read_service
 #
 # Block device service for handling block read requests.
-#
+## @file block_device_read_service.py Implementation of @ref block_device.services.block_device_read_service
+import logging
 import os
 import urlparse
 

@@ -1,7 +1,7 @@
-## @package cyber-safe.frontend.services.download_service
+## @package frontend.services.download_service
 #
 # a service for file download from disk.
-#
+## @file download_service.py Implementation of @ref frontend.services.download_service
 import struct
 import logging
 import urlparse

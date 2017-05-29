@@ -1,7 +1,7 @@
-## @package cyber-safe.frontend.services.file_upload_service.
+## @package frontend.services.file_upload_service
 #
 # a service for uploading files to block device.
-#
+## @file file_upload_service.py Implementation of @ref frontend.services.file_upload_service
 import os
 import logging
 import struct

@@ -1,5 +1,6 @@
-## @package cyber-safe.common.pollables.tcp_listener
+## @package common.pollables.tcp_listener
 # Class of TCP listener object, which listens for new connections and adds them to poller.
+## @file tcp_listener.py Implementation of @ref common.pollables.tcp_listener
 import socket
 import logging
 

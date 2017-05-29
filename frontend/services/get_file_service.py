@@ -1,7 +1,7 @@
-## @package cyber-safe.frontend.services.get_file_service
+## @package frontend.services.get_file_service
 #
 # a service for sending regular files to browser.
-#
+## @file get_file_service.py Implementation of @ref frontend.services.get_file_service
 import errno
 import logging
 import os

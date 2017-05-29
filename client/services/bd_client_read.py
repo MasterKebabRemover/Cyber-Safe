@@ -1,7 +1,7 @@
-## @package cyber-safe.client.services.bd_client_read
+## @package client.services.bd_client_read
 #
 # Client service for requesting block read from block device server.
-#
+## @file bd_client_read.py Implementation of @ref client.services.bd_client_read
 import base64
 import logging
 

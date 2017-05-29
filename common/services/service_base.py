@@ -1,5 +1,6 @@
-## @package cyber-safe.common.services.service_base
+## @package common.services.service_base
 # Base class for all services.
+## @file service_base.py Implementation of @ref common.services.service_base
 import Cookie
 import logging
 import struct
@@ -122,10 +123,7 @@ class ServiceBase(object):
             request_context["authorization"] = authorization
             return authorization
         else:
-            request_context["headers"]["Location"] = "http://%s:%d/" % (
-                request_context["app_context"]["bind_address"],
-                request_context["app_context"]["bind_port"]
-            )
+            request_context["headers"]["Location"] = "/"
             raise util.HTTPError(307, "Temporary Redirect")
 
     ## Parse core block.

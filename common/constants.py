@@ -1,6 +1,6 @@
-## @package cyber-safe.common.constants
+## @package common.constants
 # Constants used within the program.
-#
+## @file constants.py Implementation of @ref common.constants
 
 ## Values to async server entry state.
 # - CLOSING: Used when socket is about to be closed.
@@ -83,11 +83,6 @@ CONTENT_LENGTH = "Content-Length"
 INTERNAL_ERROR = "Internal Error"
 AUTHORIZATION = "Authorization"
 UNATHORIZED = "Unathorized"
-
-## Location of frontend config file.
-FRONTEND_CONFIG = "frontend/config.ini"
-## Location of block device config file.
-BLOCK_DEVICE_CONFIG = "block_device/config.ini"
 
 ## Length of init vector for AES encryption.
 IV_LENGTH = 16

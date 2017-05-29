@@ -1,5 +1,6 @@
-## @package cyber-safe.common.pollables.http_client
+## @package common.pollables.http_client
 # Class which handles HTTP state machine and client actions.
+## @file http_client.py Implementation of @ref common.pollables.http_client
 import errno
 import socket
 import logging

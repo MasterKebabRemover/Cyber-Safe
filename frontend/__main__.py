@@ -1,6 +1,7 @@
 #!/usr/bin/python
-## @package cyber-safe.frontend.__main__
+## @package frontend.__main__
 # main program of frontend HTTP server.
+## @file frontend/__main__.py Implementation of @ref frontend.__main__
 import argparse
 import ConfigParser
 import logging
@@ -19,7 +20,6 @@ from common.pollables.http_socket import HttpSocket
 # when called, makes the program run in the background as a daemon process.
 def daemonize():
     os.closerange(3, resource.RLIMIT_NOFILE)
-    os.chdir('/')
     child = os.fork()
     if child != 0:
         os._exit(0)
@@ -55,7 +55,7 @@ def parse_args():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=0,
+        default=1,
         help="Optional server polling timeout",
     )
     parser.add_argument(
@@ -71,6 +71,11 @@ def parse_args():
         ),
         choices=["select", "poll"],
         default="select" if os.name == "nt" else "poll"
+    ),
+    parser.add_argument(
+        "--config",
+        help="path for the config file",
+        default="frontend/config.ini"
     )
 
     args = parser.parse_args()
@@ -82,10 +87,13 @@ def parse_args():
 # creates an asynchronous server with a listener and calls run() on it.
 def __main__():
     args = parse_args()
+    if args.foreground:
+        daemonize()
+
     logging.basicConfig(filename=args.log_file, level=logging.DEBUG)
 
     Config = ConfigParser.ConfigParser()
-    Config.read(constants.FRONTEND_CONFIG)
+    Config.read(args.config)
 
 
     devices = None
@@ -102,9 +110,6 @@ def __main__():
             }
     sparse = None
     admin = Config.get('frontend', 'admin.password')
-
-    if args.foreground:
-        daemonize()
 
     objects = []
 

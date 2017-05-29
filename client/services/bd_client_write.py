@@ -1,7 +1,7 @@
-## @package cyber-safe.client.services.bd_client_write
+## @package client.services.bd_client_write
 #
 # Client service for requesting block write to block device server
-#
+## @file bd_client_write.py Implementation of @ref client.services.bd_client_write
 import base64
 import logging
 

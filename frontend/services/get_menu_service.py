@@ -1,8 +1,8 @@
 
-## @package cyber-safe.frontend.services.get_menu_service
+## @package frontend.services.get_menu_service
 #
 # a service for sending the HTML project GUI menu to browser.
-#
+## @file get_menu_service.py Implementation of @ref frontend.services.get_menu_service
 import errno
 import logging
 import os

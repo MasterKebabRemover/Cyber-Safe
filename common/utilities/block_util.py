@@ -1,7 +1,7 @@
-## @package cyber-safe.common.utilities.block_util
+## @package common.utilities.block_util
 #
 # Various block handling utilities.
-#
+## @file block_util.py Implementation of @ref common.utilities.block_util
 import errno
 import socket
 from common import constants

@@ -1,6 +1,6 @@
-## @package cyber-safe.common.async_server
+## @package common.async_server
 # Server for handling asynchronous I/O.
-#
+## @file async_server.py Implementation of @ref common.async_server
 import errno
 import logging
 import select

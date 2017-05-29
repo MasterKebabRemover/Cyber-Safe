@@ -1,7 +1,7 @@
-## @package cyber-safe.frontend.services.admin_service
+## @package frontend.services.admin_service
 #
 # simple service for verifying admin authentication. 
-#
+## @file admin_service.py Implementation of @ref frontend.services.admin_service
 import logging
 
 from common import constants

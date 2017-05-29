@@ -1,7 +1,7 @@
-## @package cyber-safe.frontend.services.init_service
+## @package frontend.services.init_service
 #
 # a service only callable by system admin to initialize block devices.
-#
+## @file init_service.py Implementation of @ref frontend.services.init_service
 import logging
 import os
 import struct

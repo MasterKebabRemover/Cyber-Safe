@@ -1,8 +1,8 @@
 #!/usr/bin/python
-## @package cyber-safe.common.utilities.integration_util
+## @package common.utilities.integration_util
 #
 # Various frontend-block_device integration related utilities.
-#
+## @file integration_util.py Implementation of @ref common.utilities.integration_util
 import os
 import logging
 import struct

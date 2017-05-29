@@ -1,6 +1,6 @@
-## @package cyber-safe.common.root_entry
+## @package common.root_entry
 # Class of handling file entry in directory root block
-#
+## @file root_entry.py Implementation of @ref common.root_entry
 from common.utilities import encryption_util
 import logging
 import os

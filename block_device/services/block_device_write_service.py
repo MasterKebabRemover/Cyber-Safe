@@ -1,7 +1,7 @@
-## @package cyber-safe.block_device.services.block_device_write_service
+## @package block_device.services.block_device_write_service
 #
 # Block device service for handling block write requests.
-#
+## @file block_device_write_service.py Implementation of @ref block_device.services.block_device_write_service
 import logging
 import os
 import urlparse

@@ -1,7 +1,7 @@
-## @package cyber-safe.frontend.services.delete_service
+## @package frontend.services.delete_service
 #
 # a service for deletion of files from safe.
-#
+## @file delete_service.py Implementation of @ref frontend.services.delete_service
 import logging
 import struct
 import urlparse

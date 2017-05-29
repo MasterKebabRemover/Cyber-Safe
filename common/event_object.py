@@ -1,6 +1,6 @@
-## @package cyber-safe.common.events_object
+## @package common.events_object
 # Asynchronous I/O event handler.
-#
+## @file event_object.py Implementation of @ref common.event_object
 import select
 
 ## Event base object.
